@@ -61,6 +61,7 @@ All application data is stored inside the mounted `/data` volume:
 | `DISABLE_AUTH` | `false` | Set to `true` to bypass login completely (e.g., behind a trusted LAN or tunnel) |
 | `ENABLE_PROXY_AUTH` | `true` | Automatically authenticate users via reverse proxy headers (`Remote-Email`, `X-Forwarded-Email`) |
 | `RP_ID` | *(request host)* | Domain that passkeys are bound to (optional; needs HTTPS and a domain name) |
+| `VEHICLEVAULT_TAG` | `latest` | Docker Compose: which build to run (`latest` = stable, `beta`, or a version). Also passed into the container, which then shows a **beta** label |
 | `CONTAINER_NAME` | `vehiclevault` | Docker Compose only (not read by the app): name of the container, taken from the `.env` next to `docker-compose.yml`. Change it to run a second instance on the same host |
 | `RP_ORIGINS` | *(request origin)* | Comma-separated https origins allowed for passkeys, e.g. `https://vault.yourdomain.com` |
 | `GEMINI_API_KEY` | *(optional)* | Default Google Gemini API key (can also be configured in the web UI) |
@@ -73,3 +74,15 @@ All application data is stored inside the mounted `/data` volume:
 Under **Settings → Backup & Opslag**, administrators can:
 - **Download Complete Backup (`.zip`):** Exports a consistent snapshot of `vehiclevault.db`, `manifest.json`, and all `/data/uploads/*` folders into a single ZIP archive.
 - **Restore from Backup (`.zip`):** Upload any previously exported VehicleVault ZIP archive to restore the database and all attachments in one click.
+
+---
+
+## 5. Stable and beta channel
+
+Every push to the `beta` branch publishes the image tag `beta`; `latest` is the stable build from `main`. Choose one in your `.env`:
+
+```env
+VEHICLEVAULT_TAG=beta
+```
+
+A beta build says so: a **beta** label next to the name, `VehicleVault (beta)` in the browser tab, a `(beta)` suffix under the home-screen icon, and `"channel": "beta"` in `/api/version`. Use a **separate data folder** (and a separate `CONTAINER_NAME` and port) for beta, so a test build never touches your real data.

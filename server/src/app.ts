@@ -25,6 +25,7 @@ import expenseRoutes from './routes/expenseRoutes.js';
 import tripRoutes from './routes/tripRoutes.js';
 import tireRoutes from './routes/tireRoutes.js';
 import { ShowcaseController } from './controllers/showcaseController.js';
+import { APP_VERSION, getChannel } from './utils/channel.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -68,7 +69,8 @@ export function createApp(): express.Application {
         database: dbCheck?.healthy === 1 ? 'connected' : 'unhealthy',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
-        version: '2.0.0',
+        version: APP_VERSION,
+        channel: getChannel(),
       });
     } catch (err: any) {
       res.status(503).json({
@@ -80,6 +82,11 @@ export function createApp(): express.Application {
 
   // Apply general rate limiter to API routes
   app.use('/api', apiLimiter);
+
+  // Version and channel (stable or beta), public so the login page can show the channel
+  app.get('/api/version', (_req: Request, res: Response) => {
+    res.json({ version: APP_VERSION, channel: getChannel() });
+  });
 
   // Mount API Domain Routes
   app.use('/api/auth', authRoutes);
@@ -112,6 +119,19 @@ export function createApp(): express.Application {
   const clientDist = possiblePaths.find((p) => fs.existsSync(p));
 
   if (clientDist) {
+    // The home-screen name comes from the manifest: mark it on the beta channel
+    app.get('/manifest.json', (_req: Request, res: Response, next: NextFunction) => {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(path.join(clientDist, 'manifest.json'), 'utf8'));
+        if (getChannel() === 'beta') {
+          manifest.name = `${manifest.name} (beta)`;
+          manifest.short_name = `${manifest.short_name} β`;
+        }
+        res.type('application/manifest+json').json(manifest);
+      } catch {
+        next();
+      }
+    });
     app.use(express.static(clientDist));
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.join(clientDist, 'index.html'));
