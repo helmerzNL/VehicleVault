@@ -1,6 +1,6 @@
 services:
   vehiclevault:
-    image: ghcr.io/helmerzNL/VehicleVault:latest
+    image: ghcr.io/helmerznl/vehiclevault:${VEHICLEVAULT_TAG:-latest}
     # Uncomment 'build' below only if you cloned the full repository and want to build locally:
     # build:
     #   context: .
