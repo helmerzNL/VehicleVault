@@ -60,6 +60,9 @@ All application data is stored inside the mounted `/data` volume:
 | `JWT_REFRESH_SECRET` | *(auto-generated)* | Secret key for signing long-lived refresh tokens |
 | `DISABLE_AUTH` | `false` | Set to `true` to bypass login completely (e.g., behind a trusted LAN or tunnel) |
 | `ENABLE_PROXY_AUTH` | `true` | Automatically authenticate users via reverse proxy headers (`Remote-Email`, `X-Forwarded-Email`) |
+| `RP_ID` | *(request host)* | Domain that passkeys are bound to (optional; needs HTTPS and a domain name) |
+| `CONTAINER_NAME` | `vehiclevault` | Docker Compose only (not read by the app): name of the container, taken from the `.env` next to `docker-compose.yml`. Change it to run a second instance on the same host |
+| `RP_ORIGINS` | *(request origin)* | Comma-separated https origins allowed for passkeys, e.g. `https://vault.yourdomain.com` |
 | `GEMINI_API_KEY` | *(optional)* | Default Google Gemini API key (can also be configured in the web UI) |
 | `OPENAI_API_KEY` | *(optional)* | Default OpenAI API key (can also be configured in the web UI) |
 

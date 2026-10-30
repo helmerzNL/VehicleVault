@@ -2,6 +2,12 @@
 
 ---
 
+## Unreleased
+
+- **Passkeys (WebAuthn):** sign in with a passkey next to your password, manage them in **Settings → Gebruikers & Toegang**, and keep one-time recovery codes for a lost device. Needs a domain name and HTTPS; configure `RP_ID` / `RP_ORIGINS` behind a reverse proxy. See `docs/wiki/Notifications-and-Security.md`.
+
+---
+
 # 🚗 VehicleVault v2.0.0 — Official Production Release
 
 **VehicleVault v2.0.0** is a complete, privacy-first, self-hosted vehicle lifecycle, fuel & EV charging, AI maintenance invoice translator, tire management, fiscal trip registration, digital glovebox, and Total Cost of Ownership (TCO) platform.
