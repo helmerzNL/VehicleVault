@@ -5,7 +5,7 @@ services:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
-    container_name: vehiclevault
+    container_name: ${CONTAINER_NAME:-vehiclevault}
     restart: unless-stopped
     ports:
       - "3084:3084"
