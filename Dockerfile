@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3084
 ENV DATA_DIR=/data
 
 # Create persistent storage mount directories
@@ -44,7 +44,7 @@ COPY --from=server-builder /app/server/dist ./dist
 COPY --from=client-builder /app/client/dist ./client/dist
 
 # Expose HTTP port
-EXPOSE 3001
+EXPOSE 3084
 
 # Declare persistent volume
 VOLUME ["/data"]
