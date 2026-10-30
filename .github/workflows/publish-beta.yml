@@ -1,0 +1,45 @@
+# Every push to `beta` builds the beta image. `beta` is a channel tag and moves on every build,
+# `beta-<sha>` names one build. It never writes a stable tag (`latest`) and never touches the GitHub
+# Releases: that stays with docker-publish.yml on `main`.
+name: publish-beta
+
+on:
+  push:
+    branches:
+      - beta
+  workflow_dispatch:
+
+concurrency:
+  group: publish-beta
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3             # to build the arm64 half of the image on this amd64 runner
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          platforms: linux/amd64,linux/arm64    # one tag, one manifest list: every host pulls the half that fits
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ steps.image.outputs.name }}:beta
+            ${{ steps.image.outputs.name }}:beta-${{ github.sha }}
