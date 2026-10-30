@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { useTheme } from '../context/ThemeContext.js';
 import { useLanguage } from '../context/LanguageContext.js';
 import { Vehicle } from '../types/index.js';
+import { BetaBadge } from './BetaBadge.js';
 import { LicensePlateBadge } from './LicensePlateBadge.js';
 
 interface NavbarProps {
@@ -88,6 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
           <span className="font-extrabold text-sm tracking-wider text-slate-900 dark:text-slate-100">
             VEHICLE<span className="text-accent-500">VAULT</span>
+            <BetaBadge />
           </span>
         </NavLink>
       </div>
@@ -98,6 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <img src="/icon-192.png" alt="VehicleVault" className="w-7 h-7 rounded-lg" />
           <span className="font-extrabold text-xs tracking-wider text-slate-900 dark:text-slate-100">
             VEHICLE<span className="text-accent-500">VAULT</span>
+            <BetaBadge />
           </span>
         </NavLink>
       </div>

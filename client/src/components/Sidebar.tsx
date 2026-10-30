@@ -16,10 +16,13 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.js';
 import { useAuth } from '../context/AuthContext.js';
+import { BetaBadge } from './BetaBadge.js';
+import { useChannel } from '../context/ChannelContext.js';
 import { useModules, EnabledModules } from '../context/ModuleContext.js';
 
 export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
+  const { version } = useChannel();
   const { user } = useAuth();
   const { isModuleEnabled } = useModules();
   const isDriver = user?.role === 'driver';
@@ -129,9 +132,10 @@ export const Sidebar: React.FC = () => {
             <div className="flex items-center space-x-1.5">
               <img src="/icon-192.png" alt="VehicleVault" className="w-4 h-4 object-contain rounded" />
               <span>VehicleVault</span>
+              <BetaBadge />
             </div>
             <span className="text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/60 font-mono">
-              v2.0.0
+              {version}
             </span>
           </div>
           <p className="text-[10px] text-slate-500 leading-tight">Self-Hosted PWA &amp; Model Context Protocol</p>

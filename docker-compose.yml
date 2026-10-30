@@ -13,6 +13,7 @@ services:
       - NODE_ENV=production
       - PORT=3084
       - DATA_DIR=/data
+      - VEHICLEVAULT_TAG=${VEHICLEVAULT_TAG:-latest}
       # Optional, for passkeys behind a reverse proxy (see docs/wiki/Notifications-and-Security.md)
       - RP_ID=${RP_ID:-}
       - RP_ORIGINS=${RP_ORIGINS:-}
