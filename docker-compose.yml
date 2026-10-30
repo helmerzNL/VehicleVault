@@ -5,9 +5,12 @@ services:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
+    # Name of the container (CONTAINER_NAME in .env). Delete this line to let Docker choose a name, which avoids
+    # naming conflicts when Dockhand/Portainer recreate the container during an update.
     container_name: ${CONTAINER_NAME:-vehiclevault}
     restart: unless-stopped
     ports:
+      # Host port : Container internal port (change PORT in .env to change the host port, e.g. PORT=8080)
       - "${PORT:-3084}:3084"
     environment:
       - NODE_ENV=production
@@ -22,7 +25,7 @@ services:
     volumes:
       - ./data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3084/healthz"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3084/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
