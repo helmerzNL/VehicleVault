@@ -18,6 +18,8 @@ export const PasskeySettings: React.FC = () => {
   const nl = lang === 'nl';
 
   const [data, setData] = useState<PasskeyList | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +29,12 @@ export const PasskeySettings: React.FC = () => {
   const load = useCallback(async () => {
     try {
       setData(await apiFetch<PasskeyList>('/api/auth/passkeys'));
-    } catch {
-      // Signed in through the proxy, an API key or with login switched off: nothing to manage here.
+      setLoadError(null);
+    } catch (err: any) {
       setData(null);
+      setLoadError(err?.message || null);
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
@@ -37,7 +42,28 @@ export const PasskeySettings: React.FC = () => {
     load();
   }, [load]);
 
-  if (authDisabled || !data) return null;
+  if (authDisabled || !data) {
+    // Say why there is nothing to manage instead of hiding the card.
+    const reason = authDisabled
+      ? nl
+        ? 'Inloggen staat uit (geen inlog vereist), dus er zijn geen accounts om een passkey aan te koppelen.'
+        : 'Sign-in is switched off, so there are no accounts to attach a passkey to.'
+      : !loaded
+        ? nl
+          ? 'Laden...'
+          : 'Loading...'
+        : loadError ||
+          (nl ? 'Passkeys konden niet worden geladen.' : 'Passkeys could not be loaded.');
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-2">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+          <Fingerprint className="w-4 h-4 text-sky-500" />
+          <span>Passkeys</span>
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{reason}</p>
+      </div>
+    );
+  }
 
   const run = async (action: () => Promise<void>) => {
     setError(null);
