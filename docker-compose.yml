@@ -10,8 +10,9 @@ services:
     container_name: ${CONTAINER_NAME:-vehiclevault}
     restart: unless-stopped
     ports:
-      # Host port : Container internal port (change PORT in .env to change the host port, e.g. PORT=8080)
-      - "${PORT:-3084}:3084"
+      # Host port : Container internal port. The beta branch defaults to host port 3085 so it can run next to the
+      # stable stack (3084); set PORT in .env to change it. The container always listens on 3084.
+      - "${PORT:-3085}:3084"
     environment:
       - NODE_ENV=production
       - PORT=3084
