@@ -1,6 +1,6 @@
 services:
   vehiclevault:
-    image: ghcr.io/teecodedev/vehiclevault:latest
+    image: ghcr.io/helmerzNL/VehicleVault:latest
     # Uncomment 'build' below only if you cloned the full repository and want to build locally:
     # build:
     #   context: .
