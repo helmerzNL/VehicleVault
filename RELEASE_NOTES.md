@@ -2,6 +2,12 @@
 
 ---
 
+## Unreleased
+
+- **Trip import:** import an existing kilometeradministratie (Belastingdienst sheet or a VehicleVault export, `.xlsx` / `.csv`) on the Ritregistratie page, with preview, duplicate detection and per-car blocks.
+
+---
+
 # 🚗 VehicleVault v2.0.0 — Official Production Release
 
 **VehicleVault v2.0.0** is a complete, privacy-first, self-hosted vehicle lifecycle, fuel & EV charging, AI maintenance invoice translator, tire management, fiscal trip registration, digital glovebox, and Total Cost of Ownership (TCO) platform.
