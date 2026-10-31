@@ -7,6 +7,14 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Device safe-area insets (notch, Dynamic Island, camera cut-out, home indicator), see --safe-* in index.css.
+      // Gives pt-safe-top, pb-safe-bottom, pl-safe-left, pr-safe-right, and so on.
+      spacing: {
+        'safe-top': 'var(--safe-top)',
+        'safe-right': 'var(--safe-right)',
+        'safe-bottom': 'var(--safe-bottom)',
+        'safe-left': 'var(--safe-left)',
+      },
       colors: {
         accent: {
           50: 'var(--accent-50)',

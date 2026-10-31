@@ -195,9 +195,9 @@ export const PublicShowcase: React.FC = () => {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen pl-safe-left pr-safe-right pb-safe-bottom bg-[#f8fafc] text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
+      <header className="sticky top-0 z-40 pt-safe-top bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center shadow-xs text-sm sm:text-base">

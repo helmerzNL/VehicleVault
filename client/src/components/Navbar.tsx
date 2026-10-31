@@ -77,7 +77,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 backdrop-blur flex items-center sticky top-0 z-40 transition-colors shadow-xs shrink-0">
+    // The header is drawn edge to edge in the installed PWA: its top padding keeps the content below the notch /
+    // Dynamic Island / camera cut-out and the status bar, while the background still runs up behind them.
+    <header className="h-[calc(3.5rem+var(--safe-top))] pt-safe-top border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 backdrop-blur flex items-center sticky top-0 z-40 transition-colors shadow-xs shrink-0">
       {/* Left Brand Column: Exactly w-60 (240px) on desktop to align pixel-perfect with Sidebar border */}
       <div className="w-60 shrink-0 h-full hidden md:flex items-center px-4 border-r border-slate-200 dark:border-slate-800">
         <NavLink to="/" className="flex items-center space-x-2.5 group">
