@@ -41,7 +41,8 @@ Dit document bevat de geplande features en ideeën voor toekomstige releases van
 ### 5. Native Web Push (VAPID) Notificaties in de PWA & E-mail Presets (Gmail / Microsoft 365)
 - ✅ **Native PWA Web Push:** Gerealiseerd. Browser/PWA push-notificaties via de Web Push standaard (VAPID, Service Worker), zonder externe notificatieservice.
 - ✅ **E-mail Presets:** Gerealiseerd. 1-klik SMTP-presets voor **Gmail**, **Microsoft 365** en **Outlook.com**.
-- **Nog open — OAuth2 / Microsoft Graph:** Verzenden via OAuth2 of de Microsoft Graph API in plaats van SMTP met (app-)wachtwoord.
+- ✅ **Microsoft Graph:** Gerealiseerd. Verzenden via de Graph API met een eigen app-registratie (`Mail.Send`), zonder SMTP-wachtwoord.
+- ✅ **Microsoft 365 aanmelden en Gmail verbinden:** Gerealiseerd. Aanmelden met een apparaatcode (zonder app-registratie) en verbinden met Google, alles in de UI.
 
 ### 6. Native Passkey / WebAuthn Ondersteuning
 - **Passkeys (FaceID / TouchID / Windows Hello / YubiKey):** Naast de bestaande ondersteuning voor Reverse Proxy SSO (Authelia, Authentik, Pangolin, Cloudflare Access) ook directe ingebouwde WebAuthn / Passkey-authenticatie toevoegen voor passwordless inloggen.
