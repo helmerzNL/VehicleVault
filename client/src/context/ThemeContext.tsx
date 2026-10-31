@@ -60,6 +60,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         root.classList.add('light');
       }
 
+      // Keep the browser / OS chrome in step with the top bar. In the installed PWA the system status bar sits
+      // over the top bar (iOS translucent bar, edge-to-edge Android), and Android picks light or dark status
+      // icons from this colour, so a fixed dark value would leave white icons on the white light-mode bar.
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute('content', computedDark ? '#0f172a' : '#ffffff');
+
       localStorage.setItem('vv_theme', theme);
     };
 

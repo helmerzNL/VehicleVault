@@ -62,7 +62,7 @@ export const Layout: React.FC = () => {
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || null;
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors overflow-hidden">
+    <div className="h-screen flex flex-col pl-safe-left pr-safe-right bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors overflow-hidden">
       <Navbar
         vehicles={vehicles}
         selectedVehicleId={selectedVehicleId}
@@ -72,13 +72,14 @@ export const Layout: React.FC = () => {
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-[calc(5rem+var(--safe-bottom))] md:pb-6">
           <Outlet context={{ vehicles, selectedVehicle, selectedVehicleId, refreshVehicles: fetchVehicles }} />
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-40 px-1 backdrop-blur shadow-lg overflow-x-auto">
+      {/* Mobile Bottom Navigation Bar. Its padding keeps the tabs clear of the iOS home indicator and gesture bar,
+          and of a camera cut-out when the phone is held sideways. */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(3.5rem+var(--safe-bottom))] pb-safe-bottom pl-[calc(0.25rem+var(--safe-left))] pr-[calc(0.25rem+var(--safe-right))] bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-40 backdrop-blur shadow-lg overflow-x-auto">
         <NavLink
           to="/"
           className={({ isActive }) =>
