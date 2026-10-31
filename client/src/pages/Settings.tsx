@@ -61,6 +61,7 @@ import { TwoFactorSettings } from '../components/TwoFactorSettings.js';
 import { OidcSettings } from '../components/OidcSettings.js';
 import { MailSettings } from '../components/MailSettings.js';
 import { WebPushSettings } from '../components/WebPushSettings.js';
+import { DisplayDiagnostics } from '../components/DisplayDiagnostics.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useModules } from '../context/ModuleContext.js';
 import { formatDisplayDate, formatDisplayDateTime, formatRelativeTime } from '../utils/format.js';
@@ -1177,6 +1178,7 @@ action:
                   {storageStats?.dataDir || '/data'}
                 </span>
               </div>
+              <DisplayDiagnostics />
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 text-xs flex items-center justify-between gap-3">
