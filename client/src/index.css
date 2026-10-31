@@ -120,6 +120,21 @@
   }
 }
 
+@layer components {
+  /*
+   * Padding for a full-screen overlay (modal backdrop, lightbox): the usual gutter around the dialog, but never
+   * less than the device safe area, so the dialog and its close button stay clear of the notch / Dynamic Island,
+   * the camera cut-out and the home indicator. Resize the gutter with [--overlay-gutter:...] (default 1rem).
+   */
+  .safe-overlay {
+    --overlay-gutter: 1rem;
+    padding-top: max(var(--overlay-gutter), var(--safe-top));
+    padding-right: max(var(--overlay-gutter), var(--safe-right));
+    padding-bottom: max(var(--overlay-gutter), var(--safe-bottom));
+    padding-left: max(var(--overlay-gutter), var(--safe-left));
+  }
+}
+
 /* Common UI Helper Classes */
 .btn-primary {
   @apply px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-xs font-bold inline-flex items-center space-x-2 shadow-sm transition;

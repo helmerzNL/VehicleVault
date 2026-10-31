@@ -1000,8 +1000,8 @@ export const Maintenance: React.FC = () => {
 
       {/* Log / Edit Service & AI Invoice Scanner Modal */}
       {isLogServiceOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto animate-in fade-in-50 zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center safe-overlay">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-safe-92vh overflow-y-auto animate-in fade-in-50 zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
                 <Wrench className="w-4 h-4 text-sky-500" />
@@ -1510,7 +1510,7 @@ export const Maintenance: React.FC = () => {
 
       {/* Add Interval Modal */}
       {isAddIntervalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center safe-overlay">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in-50 zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
@@ -1626,7 +1626,7 @@ export const Maintenance: React.FC = () => {
 
       {/* Edit Interval Modal (Pencil Icon Trigger) */}
       {isEditIntervalOpen && editingInterval && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center safe-overlay">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in-50 zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
@@ -1723,11 +1723,11 @@ export const Maintenance: React.FC = () => {
       {/* Service Record Extracted Line Items & Details Modal */}
       {selectedRecordForDetails && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center safe-overlay"
           onClick={() => setSelectedRecordForDetails(null)}
         >
           <div
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col animate-in fade-in-50 zoom-in-95"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-safe-90vh flex flex-col animate-in fade-in-50 zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
