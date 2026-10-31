@@ -25,8 +25,8 @@ export const EMAIL_PRESETS: EmailPreset[] = [
     host: 'smtp.office365.com',
     port: 587,
     secure: false,
-    nl: 'Gebruik het volledige e-mailadres van de mailbox als gebruiker. De beheerder moet "Geverifieerde SMTP-client" (SMTP AUTH) voor die mailbox hebben ingeschakeld, en de afzender moet het adres van die mailbox zijn. Is SMTP AUTH bij jullie uitgeschakeld, kies dan hierboven "Microsoft 365" (aanmelden met je account).',
-    en: 'Use the full mailbox address as user. An admin must have enabled "Authenticated SMTP" (SMTP AUTH) for that mailbox, and the sender must be that mailbox address. If SMTP AUTH is disabled in your tenant, choose "Microsoft 365" above (sign in with your account).',
+    nl: 'Gebruik het volledige e-mailadres van de mailbox als gebruiker. De beheerder moet "Geverifieerde SMTP-client" (SMTP AUTH) voor die mailbox hebben ingeschakeld, en de afzender moet het adres van die mailbox zijn. Is SMTP AUTH bij jullie uitgeschakeld, kies dan hierboven "Microsoft Graph".',
+    en: 'Use the full mailbox address as user. An admin must have enabled "Authenticated SMTP" (SMTP AUTH) for that mailbox, and the sender must be that mailbox address. If SMTP AUTH is disabled in your tenant, choose "Microsoft Graph" above.',
   },
   {
     id: 'outlook',

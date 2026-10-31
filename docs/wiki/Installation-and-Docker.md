@@ -84,4 +84,4 @@ Every push to the `beta` branch publishes the image tag `beta`; `latest` is the 
 VEHICLEVAULT_TAG=beta
 ```
 
-A beta build says so: a **beta** label next to the name, `VehicleVault (beta)` in the browser tab, a `(beta)` suffix under the home-screen icon, and `"channel": "beta"` in `/api/version`. Use a **separate data folder** (and a separate `CONTAINER_NAME`) for beta, so a test build never touches your real data. On the `beta` branch the compose maps host port **3085** by default (`PORT` in `.env` changes it), so a beta stack runs next to a stable stack on 3084; inside the container the app always listens on 3084.
+A beta build says so: a **beta** label next to the name, `VehicleVault (beta)` in the browser tab, a `(beta)` suffix under the home-screen icon, and `"channel": "beta"` in `/api/version`. Use a **separate data folder** (and a separate `CONTAINER_NAME` and port) for beta, so a test build never touches your real data.

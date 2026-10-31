@@ -5,8 +5,6 @@
 ## Unreleased
 
 - **Beta channel:** `VEHICLEVAULT_TAG=beta` runs the build from the `beta` branch, clearly labelled as beta in the app, the browser tab and `/api/version`.
-- **Passkeys (WebAuthn):** sign in with a passkey next to your password, manage them in **Settings → Gebruikers & Toegang**, and keep one-time recovery codes for a lost device. Needs a domain name and HTTPS; configure `RP_ID` / `RP_ORIGINS` behind a reverse proxy. See `docs/wiki/Notifications-and-Security.md`.
-- **Trip import:** import an existing kilometeradministratie (Belastingdienst sheet or a VehicleVault export, `.xlsx` / `.csv`) on the Ritregistratie page, with preview, duplicate detection and per-car blocks.
 
 ---
 

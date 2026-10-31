@@ -13,6 +13,8 @@ import {
   Eye,
   LayoutList,
   LayoutGrid,
+  Tag,
+  Pencil,
 } from 'lucide-react';
 import { Vehicle, VehicleDocument } from '../types/index.js';
 import { apiFetch } from '../api/client.js';
@@ -21,6 +23,7 @@ import { compressImage } from '../utils/imageCompressor.js';
 import { formatDisplayDate } from '../utils/format.js';
 import { DatePicker } from '../components/DatePicker.js';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal.js';
+import { VignetteManager } from '../components/VignetteManager.js';
 
 interface ContextType {
   vehicles: Vehicle[];
@@ -33,9 +36,11 @@ export const Documents: React.FC = () => {
   const { selectedVehicle } = useOutletContext<ContextType>();
   const { t, lang } = useLanguage();
 
+  const [activeSection, setActiveSection] = useState<'documents' | 'vignettes'>('documents');
   const [documents, setDocuments] = useState<VehicleDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<DocCategory>('all');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'name_asc'>('date_desc');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
     return (localStorage.getItem('vv_documents_view') as 'list' | 'grid') || 'list';
   });
@@ -62,10 +67,21 @@ export const Documents: React.FC = () => {
   const [docCategory, setDocCategory] = useState<'registration' | 'insurance' | 'apk' | 'invoice' | 'manual' | 'other'>('registration');
   const [docNotes, setDocNotes] = useState('');
   const [docExpiresAt, setDocExpiresAt] = useState('');
+  const [docDate, setDocDate] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [compressionRatio, setCompressionRatio] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Edit Document Modal state
+  const [editingDoc, setEditingDoc] = useState<VehicleDocument | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<'registration' | 'insurance' | 'apk' | 'invoice' | 'manual' | 'other'>('invoice');
+  const [editDate, setEditDate] = useState('');
+  const [editExpiresAt, setEditExpiresAt] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
     if (selectedVehicle) {
@@ -90,6 +106,19 @@ export const Documents: React.FC = () => {
     if (!docName) {
       const cleanName = file.name.replace(/\.[^/.]+$/, '');
       setDocName(cleanName);
+    }
+    if (!docDate) {
+      const dmy = file.name.match(/\b([0-3]?[0-9])[-/.]([0-1]?[0-9])[-/.]([12][0-9]{3})\b/);
+      if (dmy) {
+        setDocDate(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`);
+      } else {
+        const ymd = file.name.match(/\b([12][0-9]{3})[-/.]([0-1]?[0-9])[-/.]([0-3]?[0-9])\b/);
+        if (ymd) {
+          setDocDate(`${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`);
+        } else {
+          setDocDate(new Date().toISOString().split('T')[0]);
+        }
+      }
     }
     if (file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(file.name)) {
       setCompressing(true);
@@ -163,6 +192,7 @@ export const Documents: React.FC = () => {
       formData.append('category', docCategory);
       if (docNotes) formData.append('notes', docNotes);
       if (docExpiresAt) formData.append('expires_at', docExpiresAt);
+      if (docDate) formData.append('document_date', docDate);
 
       await apiFetch(`/api/documents/${selectedVehicle.id}`, {
         method: 'POST',
@@ -174,6 +204,7 @@ export const Documents: React.FC = () => {
       setDocName('');
       setDocNotes('');
       setDocExpiresAt('');
+      setDocDate('');
       setCompressionRatio(null);
       setDocCategory('registration');
       setIsDragging(false);
@@ -247,10 +278,81 @@ export const Documents: React.FC = () => {
     }
   };
 
-  const filteredDocuments = documents.filter((doc) => {
-    if (activeCategory === 'all') return true;
-    return doc.category === activeCategory;
-  });
+  const extractDocumentDate = (doc: VehicleDocument): string => {
+    if (doc.document_date && /^\d{4}-\d{2}-\d{2}$/.test(doc.document_date)) {
+      return doc.document_date;
+    }
+    const dmyMatch = doc.name ? doc.name.match(/\b([0-3]?[0-9])[-/.]([0-1]?[0-9])[-/.]([12][0-9]{3})\b/) : null;
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+    const ymdMatch = doc.name ? doc.name.match(/\b([12][0-9]{3})[-/.]([0-1]?[0-9])[-/.]([0-3]?[0-9])\b/) : null;
+    if (ymdMatch) {
+      return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+    }
+    if (doc.created_at) {
+      return doc.created_at.split('T')[0];
+    }
+    return '1970-01-01';
+  };
+
+  const openEditModal = (doc: VehicleDocument) => {
+    setEditingDoc(doc);
+    setEditName(doc.name);
+    setEditCategory(doc.category);
+    setEditDate(extractDocumentDate(doc));
+    setEditExpiresAt(doc.expires_at || '');
+    setEditNotes(doc.notes || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc) return;
+    try {
+      setIsSavingEdit(true);
+      await apiFetch(`/api/documents/${editingDoc.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editName.trim(),
+          category: editCategory,
+          document_date: editDate || null,
+          expires_at: editExpiresAt || null,
+          notes: editNotes.trim() || null,
+        }),
+      });
+      setIsEditModalOpen(false);
+      setEditingDoc(null);
+      if (selectedVehicle) {
+        await loadDocuments(selectedVehicle.id);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Fout bij opslaan document');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const filteredDocuments = documents
+    .filter((doc) => {
+      if (activeCategory === 'all') return true;
+      return doc.category === activeCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name_asc') {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      }
+      const dateA = extractDocumentDate(a);
+      const dateB = extractDocumentDate(b);
+      if (sortBy === 'date_asc') {
+        return dateA.localeCompare(dateB) || a.created_at.localeCompare(b.created_at);
+      }
+      // default: date_desc (nieuwste datum eerst)
+      return dateB.localeCompare(dateA) || b.created_at.localeCompare(a.created_at);
+    });
 
   const categories: { key: DocCategory; label: string }[] = [
     { key: 'all', label: t('docCatAll') },
@@ -280,26 +382,62 @@ export const Documents: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
-            <FolderLock className="w-5 h-5 text-sky-500" />
-            <span>{t('documentsTitle')}</span>
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {t('documentsSubtitle')} • <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedVehicle.name}</span>
-          </p>
-        </div>
+      {/* Top Section Switcher: Documenten vs Tolvignetten */}
+      <div className="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200 dark:border-slate-800 w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveSection('documents')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+            activeSection === 'documents'
+              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <FolderLock className="w-3.5 h-3.5 text-sky-500" />
+          <span>{lang === 'nl' ? 'Documenten & Facturen' : 'Documents & Invoices'}</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-mono">
+            {documents.length}
+          </span>
+        </button>
 
         <button
-          onClick={() => setIsUploadModalOpen(true)}
-          className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-xs font-bold inline-flex items-center space-x-1.5 transition shadow-sm hover:scale-[1.02] self-start sm:self-auto"
+          type="button"
+          onClick={() => setActiveSection('vignettes')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+            activeSection === 'vignettes'
+              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>{t('uploadDocument')}</span>
+          <Tag className="w-3.5 h-3.5 text-amber-500" />
+          <span>{lang === 'nl' ? 'Tolvignetten & Milieustickers' : 'Vignettes & Badges'}</span>
         </button>
       </div>
+
+      {activeSection === 'vignettes' ? (
+        <VignetteManager vehicle={selectedVehicle} />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
+                <FolderLock className="w-5 h-5 text-sky-500" />
+                <span>{t('documentsTitle')}</span>
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {t('documentsSubtitle')} • <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedVehicle.name}</span>
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-xs font-bold inline-flex items-center space-x-1.5 transition shadow-sm hover:scale-[1.02] self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('uploadDocument')}</span>
+            </button>
+          </div>
 
       {/* Filter Tabs & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -332,8 +470,20 @@ export const Documents: React.FC = () => {
           })}
         </div>
 
-        {/* View Switcher */}
-        <div className="flex items-center space-x-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-800 self-end sm:self-auto shrink-0 shadow-2xs">
+        {/* Sort & View Switcher */}
+        <div className="flex items-center space-x-2 self-end sm:self-auto shrink-0">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-2xs"
+            title={lang === 'nl' ? 'Documenten sorteren' : 'Sort documents'}
+          >
+            <option value="date_desc">{lang === 'nl' ? 'Datum: Nieuwste eerst' : 'Date: Newest first'}</option>
+            <option value="date_asc">{lang === 'nl' ? 'Datum: Oudste eerst' : 'Date: Oldest first'}</option>
+            <option value="name_asc">{lang === 'nl' ? 'Naam (A-Z)' : 'Name (A-Z)'}</option>
+          </select>
+
+          <div className="flex items-center space-x-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
           <button
             type="button"
             onClick={() => handleSetViewMode('list')}
@@ -358,6 +508,7 @@ export const Documents: React.FC = () => {
           >
             <LayoutGrid className="w-4 h-4" />
           </button>
+          </div>
         </div>
       </div>
 
@@ -430,6 +581,20 @@ export const Documents: React.FC = () => {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${badge.badgeClass}`}>
                         {badge.label}
                       </span>
+
+                      {(() => {
+                        const dateStr = extractDocumentDate(doc);
+                        return dateStr && dateStr !== '1970-01-01' ? (
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(doc)}
+                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 dark:bg-slate-800 dark:hover:bg-sky-950/40 dark:text-slate-300 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 hover:border-sky-300 transition cursor-pointer"
+                            title={lang === 'nl' ? 'Klik om datum of document te wijzigen' : 'Click to edit date or document'}
+                          >
+                            📅 {formatDisplayDate(dateStr)}
+                          </button>
+                        ) : null;
+                      })()}
 
                       {doc.expires_at && (() => {
                         const exp = new Date(doc.expires_at);
@@ -504,6 +669,15 @@ export const Documents: React.FC = () => {
                   </a>
 
                   <button
+                    type="button"
+                    onClick={() => openEditModal(doc)}
+                    className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-xl transition"
+                    title={lang === 'nl' ? 'Document / Datum bewerken' : 'Edit document / date'}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
                     onClick={() => handleDelete(doc.id)}
                     className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition"
                     title={t('delete')}
@@ -559,6 +733,19 @@ export const Documents: React.FC = () => {
                           <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${badge.badgeClass}`}>
                             {badge.label}
                           </span>
+                          {(() => {
+                            const dateStr = extractDocumentDate(doc);
+                            return dateStr && dateStr !== '1970-01-01' ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(doc)}
+                                className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 dark:bg-slate-800 dark:hover:bg-sky-950/40 dark:text-slate-300 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 hover:border-sky-300 transition cursor-pointer"
+                                title={lang === 'nl' ? 'Klik om datum of document te wijzigen' : 'Click to edit date or document'}
+                              >
+                                📅 {formatDisplayDate(dateStr)}
+                              </button>
+                            ) : null;
+                          })()}
                           {doc.expires_at && (() => {
                             const exp = new Date(doc.expires_at);
                             const today = new Date();
@@ -590,13 +777,24 @@ export const Documents: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                      title={t('delete')}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(doc)}
+                        className="text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        title={lang === 'nl' ? 'Document / Datum bewerken' : 'Edit document / date'}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        title={t('delete')}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {doc.notes && (
@@ -646,6 +844,8 @@ export const Documents: React.FC = () => {
             );
           })}
         </div>
+      )}
+        </>
       )}
 
       {/* Upload Document Modal */}
@@ -747,7 +947,15 @@ export const Documents: React.FC = () => {
                 </select>
               </div>
 
-              {/* Notes */}
+              {/* Document Date */}
+              <div>
+                <DatePicker
+                  label={lang === 'nl' ? 'Document- / Factuurdatum' : 'Document / Invoice Date'}
+                  value={docDate}
+                  onChange={setDocDate}
+                />
+              </div>
+
               {/* Expiration Date (Optional) */}
               <div>
                 <DatePicker
@@ -789,6 +997,122 @@ export const Documents: React.FC = () => {
                   className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
                 >
                   {isUploading ? t('saving') : t('save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Document Modal */}
+      {isEditModalOpen && editingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <Pencil className="w-4 h-4 text-sky-500" />
+                <span>{lang === 'nl' ? 'Document & Datum Bewerken' : 'Edit Document & Date'}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingDoc(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              {/* Document / Invoice Date */}
+              <div>
+                <DatePicker
+                  label={lang === 'nl' ? 'Document- / Factuurdatum' : 'Document / Invoice Date'}
+                  value={editDate}
+                  onChange={setEditDate}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {lang === 'nl'
+                    ? 'Deze datum bepaalt de chronologische volgorde in het overzicht.'
+                    : 'This date determines the chronological sort order in the overview.'}
+                </p>
+              </div>
+
+              {/* Title / Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {lang === 'nl' ? 'Documentnaam / Titel' : 'Document Title / Name'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {lang === 'nl' ? 'Categorie' : 'Category'}
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="registration">{t('docCatRegistration')}</option>
+                  <option value="insurance">{t('docCatInsurance')}</option>
+                  <option value="apk">{t('docCatApk')}</option>
+                  <option value="invoice">{t('docCatInvoices')}</option>
+                  <option value="manual">{t('docCatManual')}</option>
+                  <option value="other">{t('docCatOther')}</option>
+                </select>
+              </div>
+
+              {/* Expiration Date (Optional) */}
+              <div>
+                <DatePicker
+                  label={lang === 'nl' ? 'Vervaldatum (optioneel)' : 'Expiration Date (optional)'}
+                  value={editExpiresAt}
+                  onChange={setEditExpiresAt}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {lang === 'nl' ? 'Notities (optioneel)' : 'Notes (optional)'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder={lang === 'nl' ? 'Optionele toelichting...' : 'Optional notes...'}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingDoc(null);
+                  }}
+                  className="px-3.5 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition font-medium"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit || !editName.trim()}
+                  className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
+                >
+                  {isSavingEdit ? t('saving') : t('save')}
                 </button>
               </div>
             </form>

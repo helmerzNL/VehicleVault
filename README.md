@@ -211,7 +211,7 @@ curl -H "X-API-Key: vkv_YOUR_KEY" http://localhost:3001/api/mcp/tools
 # 1. Install workspace dependencies
 npm install
 
-# 2. Run automated test suite (87/87 tests passing)
+# 2. Run automated test suite (73/73 tests passing)
 npm test
 
 # 3. Build both client and server

@@ -24,6 +24,7 @@ import backupRoutes from './routes/backupRoutes.js';
 import expenseRoutes from './routes/expenseRoutes.js';
 import tripRoutes from './routes/tripRoutes.js';
 import tireRoutes from './routes/tireRoutes.js';
+import vignetteRoutes from './routes/vignetteRoutes.js';
 import { ShowcaseController } from './controllers/showcaseController.js';
 import { APP_VERSION, getChannel } from './utils/channel.js';
 
@@ -53,6 +54,26 @@ export function createApp(): express.Application {
   app.use(cookieParser());
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+  // HTTP Request Logger (Clean, structured console logging)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Skip noisy polling on internal healthz endpoint
+    if (req.path === '/healthz') {
+      return next();
+    }
+    const start = Date.now();
+    const { method, originalUrl } = req;
+    const ip = req.ip || req.socket.remoteAddress || '-';
+
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      const status = res.statusCode;
+      const icon = status >= 500 ? '❌' : status >= 400 ? '⚠️' : status >= 300 ? '↪️' : '✅';
+      console.log(`[${new Date().toISOString()}] [HTTP] ${icon} ${method} ${originalUrl} ${status} (${duration}ms) - ${ip}`);
+    });
+
+    next();
+  });
 
   // Serve persistent uploads securely
   app.use('/uploads/receipts', express.static(DATA_PATHS.receipts));
@@ -104,6 +125,7 @@ export function createApp(): express.Application {
   app.use('/api/expenses', expenseRoutes);
   app.use('/api/trips', tripRoutes);
   app.use('/api/tires', tireRoutes);
+  app.use('/api/vignettes', vignetteRoutes);
 
   // Public Unauthenticated Showcase Endpoint
   app.get('/api/public/showcase/:slug', ShowcaseController.getPublic);
@@ -127,6 +149,7 @@ export function createApp(): express.Application {
           manifest.name = `${manifest.name} (beta)`;
           manifest.short_name = `${manifest.short_name} β`;
         }
+        // Entry point of an update: browsers and proxies must ask every time (same as the static handler below)
         res.setHeader('Cache-Control', 'no-cache');
         res.type('application/manifest+json').json(manifest);
       } catch {
@@ -160,8 +183,8 @@ export function createApp(): express.Application {
   }
 
   // Global Error Handler
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('Unhandled server error:', err);
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    console.error(`[${new Date().toISOString()}] ❌ Unhandled error on ${req.method} ${req.originalUrl}:`, err);
     res.status(err.status || 500).json({
       error: err.message || 'Internal Server Error',
     });

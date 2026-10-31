@@ -65,6 +65,7 @@ export interface FuelEntry {
   station_address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  is_towing?: number | boolean;
   created_at: string;
 }
 
@@ -167,7 +168,28 @@ export interface VehicleDocument {
   mime_type: string;
   notes?: string | null;
   expires_at?: string | null;
+  document_date?: string | null;
   created_at: string;
+}
+
+export interface VehicleVignette {
+  id: string;
+  vehicle_id: string;
+  user_id: string;
+  country: string;
+  vignette_type: 'toll_digital' | 'toll_sticker' | 'emission_sticker' | 'other';
+  name: string;
+  valid_from?: string | null;
+  valid_until?: string | null;
+  cost: number;
+  reference_number?: string | null;
+  document_id?: string | null;
+  document_name?: string | null;
+  document_file_path?: string | null;
+  notes?: string | null;
+  created_at: string;
+  status?: 'active' | 'expiring_soon' | 'expired' | 'future' | 'lifetime';
+  days_remaining?: number | null;
 }
 
 export interface FuelTripMetric {
@@ -180,6 +202,7 @@ export interface FuelTripMetric {
   costPer100Km: number | null;
   lPer100Km: number | null;
   station: string | null;
+  is_towing?: number | boolean;
 }
 
 export interface StationComparison {
@@ -195,6 +218,8 @@ export interface FuelDetailedStats {
   avgDistancePerTank: number | null;
   maxDistancePerTank: number | null;
   avgCostPer100Km: number | null;
+  avgNormalLPer100Km?: number | null;
+  avgTowingLPer100Km?: number | null;
   tripMetrics: FuelTripMetric[];
   stations: StationComparison[];
 }
@@ -298,6 +323,11 @@ export interface RecurringExpense {
   end_date: string | null;
   is_active: number;
   notes: string | null;
+  purchase_price?: number | null;
+  purchase_date?: string | null;
+  invoice_file?: string | null;
+  invoice_document_id?: string | null;
+  wear_cost_per_1000km?: number | null;
   created_at: string;
 }
 
@@ -350,6 +380,11 @@ export interface TireSet {
   tread_depth_rr: number | null;
   last_measured_date: string | null;
   notes: string | null;
+  purchase_price?: number | null;
+  purchase_date?: string | null;
+  invoice_file?: string | null;
+  invoice_document_id?: string | null;
+  wear_cost_per_1000km?: number | null;
   created_at: string;
   minDepth?: number | null;
   treadStatus?: 'ok' | 'warning' | 'critical' | 'unknown';

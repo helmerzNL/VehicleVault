@@ -25,6 +25,23 @@ export function initializeDatabase(): void {
     );
   `);
 
+  if (!columnExists('users', 'two_factor_enabled')) {
+    db.exec('ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0;');
+  }
+  if (!columnExists('users', 'two_factor_secret')) {
+    db.exec('ALTER TABLE users ADD COLUMN two_factor_secret TEXT;');
+  }
+  if (!columnExists('users', 'two_factor_backup_codes')) {
+    db.exec('ALTER TABLE users ADD COLUMN two_factor_backup_codes TEXT;');
+  }
+  if (!columnExists('users', 'oidc_id')) {
+    db.exec('ALTER TABLE users ADD COLUMN oidc_id TEXT;');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_users_oidc_id ON users (oidc_id);');
+  }
+  if (!columnExists('users', 'oidc_provider')) {
+    db.exec('ALTER TABLE users ADD COLUMN oidc_provider TEXT;');
+  }
+
   // 2. Refresh tokens
   db.exec(`
     CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -161,6 +178,7 @@ export function initializeDatabase(): void {
       energy_type TEXT NOT NULL DEFAULT 'fuel',
       kwh REAL,
       price_per_kwh REAL,
+      is_towing INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
     );
@@ -186,6 +204,9 @@ export function initializeDatabase(): void {
   }
   if (!columnExists('fuel_entries', 'price_per_kwh')) {
     db.exec('ALTER TABLE fuel_entries ADD COLUMN price_per_kwh REAL;');
+  }
+  if (!columnExists('fuel_entries', 'is_towing')) {
+    db.exec('ALTER TABLE fuel_entries ADD COLUMN is_towing INTEGER NOT NULL DEFAULT 0;');
   }
 
   // 6. Service categories
@@ -285,6 +306,7 @@ export function initializeDatabase(): void {
       mime_type TEXT,
       notes TEXT,
       expires_at TEXT,
+      document_date TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -293,6 +315,53 @@ export function initializeDatabase(): void {
 
   if (!columnExists('vehicle_documents', 'expires_at')) {
     db.exec('ALTER TABLE vehicle_documents ADD COLUMN expires_at TEXT;');
+  }
+
+  if (!columnExists('vehicle_documents', 'document_date')) {
+    db.exec('ALTER TABLE vehicle_documents ADD COLUMN document_date TEXT;');
+  }
+
+  // Backfill document_date from service_records or document names
+  try {
+    db.exec(`
+      UPDATE vehicle_documents
+      SET document_date = (
+        SELECT sr.date FROM service_records sr
+        WHERE sr.invoice_path = vehicle_documents.file_path
+        LIMIT 1
+      )
+      WHERE (document_date IS NULL OR document_date = '')
+        AND EXISTS (
+          SELECT 1 FROM service_records sr WHERE sr.invoice_path = vehicle_documents.file_path
+        );
+    `);
+
+    const allDocs = db.query<any>(
+      "SELECT id, name, document_date, created_at FROM vehicle_documents"
+    );
+    for (const d of allDocs) {
+      let parsedDate: string | null = null;
+      const dmyMatch = d.name ? d.name.match(/\b([0-3]?[0-9])[-/.]([0-1]?[0-9])[-/.]([12][0-9]{3})\b/) : null;
+      if (dmyMatch) {
+        const day = dmyMatch[1].padStart(2, '0');
+        const month = dmyMatch[2].padStart(2, '0');
+        const year = dmyMatch[3];
+        parsedDate = `${year}-${month}-${day}`;
+      } else {
+        const ymdMatch = d.name ? d.name.match(/\b([12][0-9]{3})[-/.]([0-1]?[0-9])[-/.]([0-3]?[0-9])\b/) : null;
+        if (ymdMatch) {
+          parsedDate = `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+        }
+      }
+      if (!parsedDate && (!d.document_date || d.document_date === '') && d.created_at) {
+        parsedDate = d.created_at.split('T')[0];
+      }
+      if (parsedDate && parsedDate !== d.document_date) {
+        db.run('UPDATE vehicle_documents SET document_date = ? WHERE id = ?', [parsedDate, d.id]);
+      }
+    }
+  } catch (err) {
+    console.warn('Document date backfill warning:', err);
   }
 
   // 9b. Odometer logs (Automated Home Assistant, OBD2, manual telemetric logs)
@@ -382,6 +451,10 @@ export function initializeDatabase(): void {
       tread_depth_rr REAL,
       last_measured_date TEXT,
       notes TEXT,
+      purchase_price REAL DEFAULT 0,
+      purchase_date TEXT,
+      invoice_file TEXT,
+      invoice_document_id TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
     );
@@ -401,6 +474,18 @@ export function initializeDatabase(): void {
     }
     if (!tireCols.includes('speed_index')) {
       db.run("ALTER TABLE tire_sets ADD COLUMN speed_index TEXT");
+    }
+    if (!tireCols.includes('purchase_price')) {
+      db.run("ALTER TABLE tire_sets ADD COLUMN purchase_price REAL DEFAULT 0");
+    }
+    if (!tireCols.includes('purchase_date')) {
+      db.run("ALTER TABLE tire_sets ADD COLUMN purchase_date TEXT");
+    }
+    if (!tireCols.includes('invoice_file')) {
+      db.run("ALTER TABLE tire_sets ADD COLUMN invoice_file TEXT");
+    }
+    if (!tireCols.includes('invoice_document_id')) {
+      db.run("ALTER TABLE tire_sets ADD COLUMN invoice_document_id TEXT");
     }
   } catch {
     // Non-fatal migration check
@@ -449,6 +534,29 @@ export function initializeDatabase(): void {
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_vehicle_showcases_slug ON vehicle_showcases (public_slug);
+  `);
+
+  // 15b. Vehicle toll vignettes & environmental badges
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_vignettes (
+      id TEXT PRIMARY KEY,
+      vehicle_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      country TEXT NOT NULL,
+      vignette_type TEXT NOT NULL DEFAULT 'toll_digital',
+      name TEXT NOT NULL,
+      valid_from TEXT,
+      valid_until TEXT,
+      cost REAL NOT NULL DEFAULT 0,
+      reference_number TEXT,
+      document_id TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_vehicle_vignettes_vehicle ON vehicle_vignettes (vehicle_id);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_vignettes_valid_until ON vehicle_vignettes (valid_until);
   `);
 
   // 16. Password reset tokens
