@@ -20,7 +20,9 @@ router.post('/', FuelController.create);
 router.put('/:id', FuelController.update);
 router.delete('/:id', FuelController.delete);
 router.post('/upload-receipt', uploadLimiter, uploadReceipt.single('receipt'), FuelController.uploadReceiptFile);
+router.post('/receipt', uploadLimiter, uploadReceipt.single('receipt'), FuelController.uploadReceiptFile);
 router.post('/ocr', uploadLimiter, uploadReceipt.single('receipt'), FuelController.ocrReceipt);
+router.post('/ocr-scan', uploadLimiter, uploadReceipt.single('receipt'), FuelController.ocrReceipt);
 router.post('/rescan-receipt', uploadLimiter, FuelController.rescanReceipt);
 router.post('/:id/rescan-receipt', uploadLimiter, FuelController.rescanReceipt);
 

@@ -8,10 +8,14 @@ export interface VehicleAccessResult {
 }
 
 /**
- * Checks whether the given user is either the owner of the vehicle or has
- * explicitly been granted access via the vehicle_shares table.
+ * Checks whether the given user is either the owner of the vehicle, has
+ * explicitly been granted access via the vehicle_shares table, or is a super-admin.
  */
-export function getVehicleAccess(vehicleId: string, userId?: string | null): VehicleAccessResult {
+export function getVehicleAccess(
+  vehicleId: string,
+  userId?: string | null,
+  userRole?: string | null
+): VehicleAccessResult {
   if (!userId) {
     return { hasAccess: false, isOwner: false, role: null, vehicle: null };
   }
@@ -26,7 +30,12 @@ export function getVehicleAccess(vehicleId: string, userId?: string | null): Veh
     return { hasAccess: true, isOwner: true, role: 'owner', vehicle };
   }
 
-  // 2. Shared vehicle check
+  // 2. Super-admin check (Super-admin can see and manage all vehicles across the instance)
+  if (userRole === 'admin') {
+    return { hasAccess: true, isOwner: false, role: 'owner', vehicle };
+  }
+
+  // 3. Shared vehicle check
   const share = db.get<{ role: string }>(
     'SELECT role FROM vehicle_shares WHERE vehicle_id = ? AND user_id = ?',
     [vehicleId, userId]

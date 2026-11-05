@@ -58,7 +58,9 @@ All application data is stored inside the mounted `/data` volume:
 | `JWT_SECRET` | *(auto-generated)* | Secret key for signing JWT access tokens |
 | `JWT_REFRESH_SECRET` | *(auto-generated)* | Secret key for signing long-lived refresh tokens |
 | `DISABLE_AUTH` | `false` | Set to `true` to bypass login completely (e.g., behind a trusted LAN or tunnel) |
-| `ENABLE_PROXY_AUTH` | `true` | Automatically authenticate users via reverse proxy headers (`Remote-Email`, `X-Forwarded-Email`) |
+| `ENABLE_PROXY_AUTH` | `true` | Authenticate users via reverse proxy headers (`Remote-Email`, `X-Pangolin-User`) |
+| `ALLOW_GUEST_ACCESS` | `true` | Enable 1-click isolated guest trial sandbox access (`?guest=1`, `?proef=1`) |
+| `PUBLIC_URL` | *(request origin)* | Canonical external URL (e.g. `https://voertuigen.jouwdomein.nl`) for OAuth callbacks |
 | `RP_ID` | *(request host)* | Domain that passkeys are bound to (optional; needs HTTPS and a domain name) |
 | `VEHICLEVAULT_TAG` | `latest` | Docker Compose: which build to run (`latest` = stable, `beta`, or a version). Also passed into the container, which then shows a **beta** label |
 | `CONTAINER_NAME` | `vehiclevault` | Docker Compose only (not read by the app): name of the container, taken from the `.env` next to `docker-compose.yml`. Change it to run a second instance on the same host |

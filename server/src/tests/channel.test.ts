@@ -46,6 +46,10 @@ describe('Release channel (stable / beta)', () => {
     assert.equal(stable.channel, 'stable');
     assert.equal(beta.version, stable.version);
 
+    // The version follows the server's package.json, so it cannot fall behind a release again
+    const serverPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'server', 'package.json'), 'utf8'));
+    assert.equal(stable.version, serverPkg.version);
+
     process.env.VEHICLEVAULT_TAG = 'beta';
     assert.equal((await getJson('/healthz')).channel, 'beta');
   });

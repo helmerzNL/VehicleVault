@@ -1090,6 +1090,44 @@ Date,Odometer,Fuel_amount,Price,Total_cost,Notes
       assert.equal(tcoWithoutFixed.includeFixedExpenses, false);
       assert.equal(tcoWithoutFixed.totalCost, Math.round((tco.totalCost - tco.fixedExpensesTotal) * 100) / 100);
     });
+
+    it('should strictly bound recurring fixed costs to their active months and avoid charging past pre-ownership years', () => {
+      const vehId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      db.run(
+        `INSERT INTO vehicles (id, user_id, name, type, license_plate, purchase_date, purchase_price, initial_odometer, created_at, updated_at)
+         VALUES (?, ?, 'Recent Car', 'car', 'RC-123-X', '2026-10-16', 15000, 40000, ?, ?)`,
+        [vehId, testUserId, now, now]
+      );
+
+      // Pre-ownership old APK / service record with cost 0 from 2 years ago (2024-05-01)
+      db.run(
+        `INSERT INTO service_records (id, vehicle_id, date, odometer, service_item, cost, exclude_from_tco, created_at)
+         VALUES (?, ?, '2024-05-01', 30000, 'APK Keuring Historie', 0, 1, ?)`,
+        [crypto.randomUUID(), vehId, now]
+      );
+
+      // Fuel entry in October 2026
+      db.run(
+        `INSERT INTO fuel_entries (id, vehicle_id, date, odometer, liters, price_per_liter, total_cost, is_full_tank, missed_previous, created_at)
+         VALUES (?, ?, '2026-10-20', 40500, 45, 1.95, 87.75, 1, 0, ?)`,
+        [crypto.randomUUID(), vehId, now]
+      );
+
+      // Recurring insurance of 80 / month, starting on 2026-10-16
+      db.run(
+        `INSERT INTO recurring_expenses (id, vehicle_id, name, category, frequency, amount, start_date, is_active, created_at)
+         VALUES (?, ?, 'Autoverzekering', 'insurance', 'monthly', 80.0, '2026-10-16', 1, ?)`,
+        [crypto.randomUUID(), vehId, now]
+      );
+
+      const tco = TcoService.calculateTco({ vehicleId: vehId, includeFixedExpenses: true });
+      assert.equal(tco.monthlyFixedCost, 80.0);
+      // Must NOT be 30 months * 80 = 2400! It must only be for active months (Oct and Nov 2026 = 160)
+      assert.ok(tco.fixedExpensesTotal <= 160.0);
+      assert.ok(tco.totalMonths <= 2);
+      assert.ok(tco.costPerKm < 1.0); // Not absurd €4+ per km!
+    });
   });
 
   describe('Trip Logging & Belastingdienst CSV Export Engine', () => {

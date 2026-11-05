@@ -9,6 +9,9 @@ import { authLimiter } from '../middleware/rateLimiter.js';
 const router = Router();
 
 router.get('/status', AuthController.status);
+router.get('/proxy-debug', AuthController.proxyDebug);
+router.post('/guest', authLimiter, AuthController.guestLogin);
+router.post('/guest/convert', requireAuth, authLimiter, AuthController.convertGuest);
 router.post('/register', authLimiter, AuthController.register);
 router.post('/login', authLimiter, AuthController.login);
 router.post('/forgot-password', authLimiter, AuthController.forgotPassword);
@@ -17,6 +20,7 @@ router.post('/reset-password', authLimiter, AuthController.resetPassword);
 router.post('/refresh', AuthController.refresh);
 router.post('/logout', AuthController.logout);
 router.get('/me', requireAuth, AuthController.me);
+router.post('/change-password', requireAuth, authLimiter, AuthController.changePassword);
 
 // Two-Factor Authentication (TOTP Authenticator & Backup Codes)
 router.get('/2fa/status', requireAuth, TwoFactorController.status);

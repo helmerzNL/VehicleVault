@@ -1,6 +1,8 @@
 import { env, DATA_PATHS } from './config/env.js';
 import { initializeDatabase } from './db/schema.js';
 import { createApp } from './app.js';
+import { SchedulerService } from './services/schedulerService.js';
+import { logger } from './utils/logger.js';
 
 // Global process error handlers with clean logging
 process.on('uncaughtException', (err) => {
@@ -18,7 +20,7 @@ async function bootstrap() {
   const port = env.PORT;
 
   console.log(`====================================================`);
-  console.log(`🚗 VehicleVault Server (v2.0.0)`);
+  console.log(`🚗 VehicleVault Server (v3.0.0)`);
   console.log(`====================================================`);
   console.log(`[${new Date().toISOString()}] [STARTUP] Node: ${process.version} | Platform: ${process.platform} (${process.arch})`);
   console.log(`[${new Date().toISOString()}] [STARTUP] Environment: ${env.NODE_ENV}`);
@@ -27,6 +29,9 @@ async function bootstrap() {
   console.log(`[${new Date().toISOString()}] [DB] Initializing SQLite schema and migrations...`);
   initializeDatabase();
   console.log(`[${new Date().toISOString()}] [DB] SQLite database initialized successfully at: ${DATA_PATHS.db}`);
+
+  console.log(`[${new Date().toISOString()}] [SCHEDULER] Initializing ToadScheduler background tasks...`);
+  SchedulerService.initialize();
 
   console.log(`[${new Date().toISOString()}] [APP] Configuring Express routes and middleware...`);
   const app = createApp();
@@ -57,6 +62,7 @@ async function bootstrap() {
 
   const shutdown = (signal: string) => {
     console.log(`[${new Date().toISOString()}] [SHUTDOWN] Received ${signal}. Gracefully closing server...`);
+    SchedulerService.stop();
     server.close(() => {
       console.log(`[${new Date().toISOString()}] [SHUTDOWN] VehicleVault server closed cleanly.`);
       process.exit(0);

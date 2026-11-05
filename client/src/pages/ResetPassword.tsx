@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, KeyRound, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext.js';
 
 export const ResetPassword: React.FC = () => {
+  const { lang } = useLanguage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token') || '';
@@ -23,7 +25,7 @@ export const ResetPassword: React.FC = () => {
     if (!token) {
       setVerifying(false);
       setTokenValid(false);
-      setTokenError('Geen herstel-token gevonden in de link. Vraag een nieuwe herstellink aan.');
+      setTokenError(lang === 'nl' ? 'Geen herstel-token gevonden in de link. Vraag een nieuwe herstellink aan.' : 'No reset token found.');
       return;
     }
 
@@ -32,32 +34,32 @@ export const ResetPassword: React.FC = () => {
         const res = await fetch(`/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`);
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || 'Deze herstellink is ongeldig of verlopen.');
+          throw new Error(data.error || (lang === 'nl' ? 'Deze herstellink is ongeldig of verlopen.' : 'Invalid or expired link.'));
         }
         setTokenValid(true);
         setTokenEmail(data.email);
       } catch (err: any) {
         setTokenValid(false);
-        setTokenError(err?.message || 'Controle van herstellink mislukt.');
+        setTokenError(err?.message || (lang === 'nl' ? 'Controle van herstellink mislukt.' : 'Verification failed.'));
       } finally {
         setVerifying(false);
       }
     };
 
     checkToken();
-  }, [token]);
+  }, [token, lang]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
 
     if (password.length < 6) {
-      setSubmitError('Het nieuwe wachtwoord moet minimaal 6 tekens bevatten.');
+      setSubmitError(lang === 'nl' ? 'Het nieuwe wachtwoord moet minimaal 6 tekens bevatten.' : 'Password must be at least 6 characters.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setSubmitError('De wachtwoorden komen niet overeen.');
+      setSubmitError(lang === 'nl' ? 'De wachtwoorden komen niet overeen.' : 'Passwords do not match.');
       return;
     }
 
@@ -71,7 +73,7 @@ export const ResetPassword: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Wachtwoord instellen mislukt.');
+        throw new Error(data.error || (lang === 'nl' ? 'Wachtwoord instellen mislukt.' : 'Password update failed.'));
       }
 
       setSuccess(true);
@@ -83,93 +85,101 @@ export const ResetPassword: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] transition-colors">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-7 shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] relative overflow-hidden text-slate-100">
+      {/* Ambient background glows */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div className="w-full max-w-md bg-slate-900/60 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-2xl relative z-10">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 flex items-center justify-center text-sky-600 dark:text-sky-400 mb-3 shadow-inner">
-            <KeyRound className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3 shadow-inner">
+            <KeyRound className="w-7 h-7" />
           </div>
-          <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Nieuw Wachtwoord</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 text-center">
-            {tokenEmail ? `Voor account ${tokenEmail}` : 'Kies een nieuw, veilig wachtwoord voor uw account'}
+          <h1 className="text-2xl font-black tracking-tight text-white">
+            {lang === 'nl' ? 'Nieuw Wachtwoord' : 'New Password'}
+          </h1>
+          <p className="text-xs text-slate-400 mt-1 text-center">
+            {tokenEmail ? `${lang === 'nl' ? 'Voor account' : 'For account'} ${tokenEmail}` : (lang === 'nl' ? 'Kies een nieuw, veilig wachtwoord voor uw account' : 'Choose a secure password')}
           </p>
         </div>
 
         {verifying ? (
           <div className="py-8 flex flex-col items-center justify-center space-y-3 text-slate-400 text-xs">
-            <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
-            <span>Herstellink verifiëren...</span>
+            <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+            <span>{lang === 'nl' ? 'Herstellink verifiëren...' : 'Verifying link...'}</span>
           </div>
         ) : !tokenValid ? (
           <div className="space-y-4 text-xs">
-            <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl text-rose-800 dark:text-rose-300 space-y-2">
-              <div className="flex items-center space-x-2 font-bold">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>Link Ongeldig of Verlopen</span>
+            <div className="p-4 bg-rose-950/60 border border-rose-500/40 rounded-2xl text-rose-200 space-y-2">
+              <div className="flex items-center space-x-2 font-bold text-rose-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{lang === 'nl' ? 'Link Ongeldig of Verlopen' : 'Invalid or Expired Link'}</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                {tokenError || 'Deze herstellink is niet meer geldig. Vraag via het inlogscherm een nieuwe link aan.'}
+                {tokenError || (lang === 'nl' ? 'Deze herstellink is niet meer geldig. Vraag via het inlogscherm een nieuwe link aan.' : 'This link is no longer valid.')}
               </p>
             </div>
 
             <div className="pt-2 text-center">
               <Link
                 to="/forgot-password"
-                className="px-4 py-2 bg-slate-900 hover:bg-black dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white text-white rounded-xl text-xs font-bold inline-flex items-center space-x-1.5 transition"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold inline-flex items-center space-x-1.5 transition shadow-md"
               >
-                <span>Nieuwe Link Aanvragen</span>
+                <span>{lang === 'nl' ? 'Nieuwe Link Aanvragen' : 'Request New Link'}</span>
               </Link>
             </div>
           </div>
         ) : success ? (
           <div className="space-y-4 text-xs">
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 space-y-2">
-              <div className="flex items-center space-x-2 font-bold">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>Wachtwoord Succesvol Gewijzigd!</span>
+            <div className="p-4 bg-emerald-950/60 border border-emerald-500/40 rounded-2xl text-emerald-300 space-y-2">
+              <div className="flex items-center space-x-2 font-bold text-emerald-200">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{lang === 'nl' ? 'Wachtwoord Succesvol Gewijzigd!' : 'Password Changed Successfully!'}</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                Uw nieuwe wachtwoord is opgeslagen. U kunt nu direct inloggen met uw nieuwe inloggegevens.
+                {lang === 'nl'
+                  ? 'Je nieuwe wachtwoord is opgeslagen. Je kunt nu direct inloggen met je nieuwe inloggegevens.'
+                  : 'Your password has been updated. You can now log in.'}
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => navigate('/login')}
-              className="w-full py-2.5 bg-accent-600 text-white hover:bg-accent-700 rounded-xl font-bold transition flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01]"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950/60 hover:scale-[1.01]"
             >
-              <span>Direct Inloggen</span>
+              <span>{lang === 'nl' ? 'Direct Inloggen' : 'Sign In Now'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {submitError && (
-              <div className="flex items-center space-x-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 text-xs p-3 rounded-xl font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="flex items-center space-x-2 bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs p-3.5 rounded-2xl font-medium shadow-lg">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                 <span>{submitError}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                Nieuw Wachtwoord
+              <label className="block text-slate-300 font-semibold mb-1.5">
+                {lang === 'nl' ? 'Nieuw Wachtwoord' : 'New Password'}
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoFocus
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimaal 6 tekens"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-10 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-500 shadow-sm"
+                  placeholder={lang === 'nl' ? 'Minimaal 6 tekens' : 'At least 6 characters'}
+                  className="w-full bg-slate-950/70 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 font-medium transition shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -177,18 +187,18 @@ export const ResetPassword: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                Wachtwoord Bevestigen
+              <label className="block text-slate-300 font-semibold mb-1.5">
+                {lang === 'nl' ? 'Wachtwoord Bevestigen' : 'Confirm Password'}
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Herhaal nieuw wachtwoord"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-10 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-500 shadow-sm"
+                  placeholder={lang === 'nl' ? 'Herhaal nieuw wachtwoord' : 'Repeat password'}
+                  className="w-full bg-slate-950/70 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 font-medium transition shadow-inner"
                 />
               </div>
             </div>
@@ -196,10 +206,10 @@ export const ResetPassword: React.FC = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 bg-accent-600 text-white hover:bg-accent-700 rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center space-x-2 mt-2 shadow-md hover:scale-[1.01]"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950/60 hover:scale-[1.01] mt-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              <span>{submitting ? 'Opslaan...' : 'Wachtwoord Opslaan'}</span>
+              <span>{submitting ? (lang === 'nl' ? 'Opslaan...' : 'Saving...') : (lang === 'nl' ? 'Wachtwoord Opslaan' : 'Save Password')}</span>
             </button>
           </form>
         )}

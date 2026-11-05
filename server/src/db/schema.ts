@@ -18,6 +18,7 @@ export function initializeDatabase(): void {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
+      is_guest INTEGER NOT NULL DEFAULT 0,
       last_login_at TEXT,
       last_active_at TEXT,
       created_at TEXT NOT NULL,
@@ -40,6 +41,9 @@ export function initializeDatabase(): void {
   }
   if (!columnExists('users', 'oidc_provider')) {
     db.exec('ALTER TABLE users ADD COLUMN oidc_provider TEXT;');
+  }
+  if (!columnExists('users', 'is_guest')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0;');
   }
 
   // 2. Refresh tokens
@@ -90,6 +94,17 @@ export function initializeDatabase(): void {
       apk_expiration_date TEXT,
       plate_country TEXT NOT NULL DEFAULT 'NL',
       image_path TEXT,
+      notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      maintenance_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      apk_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      tire_swap_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      tire_tread_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+      telematics_enabled INTEGER NOT NULL DEFAULT 0,
+      telematics_provider TEXT NOT NULL DEFAULT 'home_assistant',
+      telematics_ha_entity_id TEXT,
+      telematics_last_sync_at TEXT,
+      telematics_last_status TEXT,
+      telematics_last_odometer REAL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -109,6 +124,39 @@ export function initializeDatabase(): void {
   }
   if (!columnExists('vehicles', 'plate_country')) {
     db.exec("ALTER TABLE vehicles ADD COLUMN plate_country TEXT NOT NULL DEFAULT 'NL';");
+  }
+  if (!columnExists('vehicles', 'notifications_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!columnExists('vehicles', 'maintenance_notifications_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN maintenance_notifications_enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!columnExists('vehicles', 'apk_notifications_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN apk_notifications_enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!columnExists('vehicles', 'tire_swap_notifications_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN tire_swap_notifications_enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!columnExists('vehicles', 'tire_tread_notifications_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN tire_tread_notifications_enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!columnExists('vehicles', 'telematics_enabled')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_enabled INTEGER NOT NULL DEFAULT 0;");
+  }
+  if (!columnExists('vehicles', 'telematics_provider')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_provider TEXT NOT NULL DEFAULT 'home_assistant';");
+  }
+  if (!columnExists('vehicles', 'telematics_ha_entity_id')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_ha_entity_id TEXT;");
+  }
+  if (!columnExists('vehicles', 'telematics_last_sync_at')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_last_sync_at TEXT;");
+  }
+  if (!columnExists('vehicles', 'telematics_last_status')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_last_status TEXT;");
+  }
+  if (!columnExists('vehicles', 'telematics_last_odometer')) {
+    db.exec("ALTER TABLE vehicles ADD COLUMN telematics_last_odometer REAL;");
   }
 
   // 4b. Multi-User Vehicle Sharing
@@ -385,7 +433,23 @@ export function initializeDatabase(): void {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS user_ha_configs (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      ha_base_url TEXT NOT NULL,
+      ha_access_token TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
+
+  if (!db.get('SELECT key FROM system_settings WHERE key = ?', ['allow_guest_access'])) {
+    const now = new Date().toISOString();
+    db.run('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)', [
+      'allow_guest_access',
+      'true',
+      now,
+    ]);
+  }
 
   // 11. Recurring expenses (Vaste Lasten: Wegenbelasting, Verzekering, Abonnementen)
   db.exec(`
@@ -490,6 +554,7 @@ export function initializeDatabase(): void {
   } catch {
     // Non-fatal migration check
   }
+
 
   // 14. Vehicle multi-photo gallery
   db.exec(`
@@ -701,6 +766,54 @@ export function initializeDatabase(): void {
 
   // Seed default presets
   seedPresets();
+
+  // 17. Better-Auth Standard Tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      emailVerified INTEGER NOT NULL DEFAULT 0,
+      image TEXT,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS session (
+      id TEXT PRIMARY KEY,
+      expiresAt INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL,
+      ipAddress TEXT,
+      userAgent TEXT,
+      userId TEXT NOT NULL,
+      FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS account (
+      id TEXT PRIMARY KEY,
+      accountId TEXT NOT NULL,
+      providerId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      accessToken TEXT,
+      refreshToken TEXT,
+      idToken TEXT,
+      accessTokenExpiresAt INTEGER,
+      refreshTokenExpiresAt INTEGER,
+      scope TEXT,
+      password TEXT,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL,
+      FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS verification (
+      id TEXT PRIMARY KEY,
+      identifier TEXT NOT NULL,
+      value TEXT NOT NULL,
+      expiresAt INTEGER NOT NULL,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    );
+  `);
 }
 
 function seedPresets(): void {

@@ -10,7 +10,15 @@ export interface SessionUser {
 }
 
 export function isSecureRequest(req: Request): boolean {
-  return req.secure || req.headers['x-forwarded-proto'] === 'https';
+  if (req.secure) return true;
+  const proto = req.headers['x-forwarded-proto'];
+  if (typeof proto === 'string') {
+    return proto.toLowerCase().includes('https');
+  }
+  if (Array.isArray(proto)) {
+    return proto.some((p) => typeof p === 'string' && p.toLowerCase().includes('https'));
+  }
+  return false;
 }
 
 /**
@@ -40,8 +48,22 @@ export function startSession(
     httpOnly: true,
     secure: isSecureRequest(req),
     sameSite: 'lax',
+    path: '/',
     maxAge: 90 * 24 * 60 * 60 * 1000,
   });
 
+  res.cookie('vv_token', accessToken, {
+    httpOnly: true,
+    secure: isSecureRequest(req),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
   return { accessToken, user: { id: user.id, email: user.email, role: user.role } };
+}
+
+export function clearSessionCookies(res: Response): void {
+  res.clearCookie('refresh_token');
+  res.clearCookie('vv_token');
 }

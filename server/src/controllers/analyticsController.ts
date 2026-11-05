@@ -42,12 +42,12 @@ export class AnalyticsController {
 
       let vehicles: any[] = [];
       if (role === 'admin') {
-        vehicles = db.query('SELECT * FROM vehicles WHERE status = "active"');
+        vehicles = db.query("SELECT * FROM vehicles WHERE status = 'active'");
       } else {
         vehicles = db.query(`
           SELECT v.* FROM vehicles v
           LEFT JOIN vehicle_shares vs ON vs.vehicle_id = v.id AND vs.user_id = ?
-          WHERE v.status = "active" AND (v.user_id = ? OR vs.id IS NOT NULL)
+          WHERE v.status = 'active' AND (v.user_id = ? OR vs.id IS NOT NULL)
         `, [userId, userId]);
       }
 
@@ -84,6 +84,7 @@ export class AnalyticsController {
             costPerKm: s.costPerKm,
             totalDistanceKm: s.totalDistanceKm,
             avgLPer100Km: s.avgLPer100Km,
+            avgKmPerLiter: s.avgKmPerLiter,
           });
 
           fleetTotalCost += s.totalCost;

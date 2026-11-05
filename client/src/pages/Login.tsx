@@ -1,30 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Mail, Loader2, AlertCircle, Fingerprint, ShieldCheck, Globe, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Languages } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { useLanguage } from '../context/LanguageContext.js';
 import { passkeyErrorMessage } from '../utils/passkeys.js';
+import { LoginHeroSection } from '../components/auth/LoginHeroSection.js';
+import { TwoFactorLoginForm } from '../components/auth/TwoFactorLoginForm.js';
+import { PasskeyAuthSection } from '../components/auth/PasskeyAuthSection.js';
+import { GuestLoginButton } from '../components/auth/GuestLoginButton.js';
+import { LoginOidcSection } from '../components/auth/LoginOidcSection.js';
+import { InitialSetupBanner } from '../components/auth/InitialSetupBanner.js';
+import { EmailLoginForm } from '../components/auth/EmailLoginForm.js';
 
 export const Login: React.FC = () => {
-  const { t, lang } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showRecovery, setShowRecovery] = useState(false);
-  const [recoveryCode, setRecoveryCode] = useState('');
-
-  // 2FA state
   const [twoFactorData, setTwoFactorData] = useState<{ requires2FA: boolean; tempToken: string } | null>(null);
   const [twoFactorCode, setTwoFactorCode] = useState('');
-
-  // OIDC state
   const [oidcConfig, setOidcConfig] = useState<{ enabled: boolean; buttonLabel: string } | null>(null);
 
-  const { login, verify2Fa, loginWithPasskey, loginWithRecoveryCode, passkeyAvailable, passkeyUnavailableReason, user, authDisabled, hasUsers } =
-    useAuth();
+  const {
+    login,
+    loginAsGuest,
+    allowGuestAccess,
+    verify2Fa,
+    loginWithPasskey,
+    loginWithRecoveryCode,
+    passkeyAvailable,
+    user,
+    authDisabled,
+    hasUsers,
+  } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,25 +45,43 @@ export const Login: React.FC = () => {
   }, [user, authDisabled, navigate]);
 
   useEffect(() => {
-    // Check url error parameters (e.g. from OIDC callback redirect)
+    const isAutoGuest =
+      searchParams.get('guest') === '1' ||
+      searchParams.get('proef') === '1' ||
+      searchParams.has('invite') ||
+      searchParams.has('token') ||
+      searchParams.has('p_token') ||
+      searchParams.has('pangolin_token') ||
+      searchParams.has('share') ||
+      searchParams.has('invite_token') ||
+      searchParams.has('key');
+    if (isAutoGuest && allowGuestAccess && !user && !loading) {
+      setLoading(true);
+      loginAsGuest()
+        .then(() => navigate('/', { replace: true }))
+        .catch((err: any) => {
+          setError(err?.message || 'Gasttoegang starten mislukt');
+          setLoading(false);
+        });
+    }
+  }, [searchParams, allowGuestAccess, user, loading]);
+
+  useEffect(() => {
     const errParam = searchParams.get('error');
     if (errParam) {
       if (errParam === 'oidc_not_configured') {
         setError(lang === 'nl' ? 'OpenID Connect (OIDC) is nog niet geconfigureerd.' : 'OIDC is not yet configured.');
       } else if (errParam === 'oidc_session_expired' || errParam === 'oidc_state_mismatch') {
-        setError(lang === 'nl' ? 'De SSO aanmeldsessie is verlopen of ongeldig. Probeer opnieuw.' : 'SSO login session expired or invalid. Please retry.');
+        setError(lang === 'nl' ? 'De SSO sessie is verlopen of ongeldig. Probeer opnieuw.' : 'SSO session expired or invalid. Please retry.');
       } else {
         setError(errParam);
       }
     }
 
-    // Fetch public OIDC config
     fetch('/api/auth/oidc/config')
       .then((r) => r.json())
       .then((data) => {
-        if (data?.enabled) {
-          setOidcConfig(data);
-        }
+        if (data?.enabled) setOidcConfig(data);
       })
       .catch(() => {});
   }, [searchParams, lang]);
@@ -71,7 +100,7 @@ export const Login: React.FC = () => {
       }
       navigate('/');
     } catch (err: any) {
-      setError(err?.message || 'Inloggen mislukt. Controleer uw gegevens.');
+      setError(err?.message || (lang === 'nl' ? 'Inloggen mislukt. Controleer uw gegevens.' : 'Login failed. Please check credentials.'));
     } finally {
       setLoading(false);
     }
@@ -87,7 +116,7 @@ export const Login: React.FC = () => {
       await verify2Fa(twoFactorData.tempToken, twoFactorCode);
       navigate('/');
     } catch (err: any) {
-      setError(err?.message || (lang === 'nl' ? 'Ongeldige verificatiecode of herstelcode' : 'Invalid code'));
+      setError(err?.message || (lang === 'nl' ? 'Ongeldige verificatiecode of herstelcode' : 'Invalid 2FA code'));
     } finally {
       setLoading(false);
     }
@@ -106,8 +135,7 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleRecovery = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRecovery = async (recoveryCode: string) => {
     setError(null);
     setLoading(true);
     try {
@@ -121,231 +149,119 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] transition-colors">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-7 shadow-xl">
-        <div className="flex flex-col items-center mb-6">
-          <img src="/icon-512.png" alt="VehicleVault" className="w-16 h-16 object-contain mb-3 drop-shadow-md" />
-          <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">VehicleVault</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {t('loginTitle')}
-          </p>
+    <div className="min-h-screen w-full pt-safe-top pb-safe-bottom pl-safe-left pr-safe-right bg-slate-950 flex flex-col lg:grid lg:grid-cols-12 text-slate-100">
+      {/* Spectacular Left Hero Section (Desktop) */}
+      <LoginHeroSection />
+
+      {/* Right Authentication Container */}
+      <div className="relative flex-1 lg:col-span-5 xl:col-span-5 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-slate-900/30 backdrop-blur-2xl overflow-hidden">
+        {/* Subtle Ambient Glow for depth */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        {/* Top bar with language switcher */}
+        <div className="relative z-10 flex items-center justify-between w-full mb-6">
+          <div className="flex items-center space-x-2.5 lg:hidden">
+            <img src="/icon-512.png" alt="VehicleVault" className="w-9 h-9 object-contain drop-shadow" />
+            <span className="font-black text-white text-lg tracking-tight">VehicleVault</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setLang(lang === 'nl' ? 'en' : 'nl')}
+            className="ml-auto inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white text-xs font-semibold transition shadow-xs"
+          >
+            <Languages className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{lang === 'nl' ? 'English' : 'Nederlands'}</span>
+          </button>
         </div>
 
-        {!hasUsers && (
-          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3.5 rounded-xl mb-4 text-xs text-emerald-800 dark:text-emerald-300 space-y-1.5 shadow-xs">
-            <div className="font-bold flex items-center space-x-1.5">
-              <span>👋 Eerste Installatie</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-300/90">
-              Er is nog geen account aangemaakt. Maak direct je eerste account aan (krijgt automatisch beheerdersrechten).
+        {/* Center Floating Glassmorphic Card */}
+        <div className="relative z-10 my-auto w-full max-w-md mx-auto bg-slate-900/80 border border-slate-800/90 rounded-3xl p-7 sm:p-8 shadow-[0_15px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+          <div className="mb-6 space-y-1">
+            <h1 className="text-2xl font-black tracking-tight text-white">
+              {lang === 'nl' ? 'Welkom terug' : 'Welcome back'}
+            </h1>
+            <p className="text-xs text-slate-400">
+              {lang === 'nl' ? 'Log in op je persoonlijke VehicleVault dashboard' : 'Sign in to access your VehicleVault dashboard'}
             </p>
-            <div className="pt-1">
-              <Link
-                to="/register"
-                className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-sm"
-              >
-                Beheerder Account Aanmaken →
-              </Link>
-            </div>
           </div>
-        )}
 
-        {error && (
-          <div className="flex items-center space-x-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 text-xs p-3 rounded-xl mb-4 font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+          {!hasUsers && <InitialSetupBanner lang={lang} />}
 
-        {twoFactorData ? (
-          <form onSubmit={handle2FaSubmit} className="space-y-4 text-xs">
-            <div className="bg-accent-50 dark:bg-accent-950/40 border border-accent-200 dark:border-accent-800/60 p-3.5 rounded-xl text-accent-900 dark:text-accent-300 space-y-1">
-              <div className="flex items-center space-x-1.5 font-bold">
-                <ShieldCheck className="w-4 h-4 text-accent-500" />
-                <span>Tweefactorauthenticatie (2FA)</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-accent-800 dark:text-accent-300/90">
-                Voer de 6-cijferige verificatiecode uit je authenticator-app (of een 8-tekens herstelcode) in om in te loggen.
-              </p>
+          {error && (
+            <div className="flex items-center space-x-2.5 bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs p-3.5 rounded-2xl mb-5 font-medium shadow-lg animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{error}</span>
             </div>
+          )}
 
-            <div>
-              <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                Verificatiecode of Herstelcode
-              </label>
-              <input
-                type="text"
-                required
-                autoFocus
-                autoComplete="one-time-code"
-                value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value)}
-                placeholder="123456 of XXXX-XXXX"
-                className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2.5 text-center font-mono text-base font-bold tracking-widest text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-accent-500 shadow-sm"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !twoFactorCode.trim()}
-              className="w-full py-2.5 bg-accent-600 text-white hover:bg-accent-700 rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01]"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              <span>{loading ? 'Verifiëren...' : 'Verifieer & Inloggen'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
+          {twoFactorData ? (
+            <TwoFactorLoginForm
+              twoFactorCode={twoFactorCode}
+              setTwoFactorCode={setTwoFactorCode}
+              onSubmit={handle2FaSubmit}
+              onCancel={() => {
                 setTwoFactorData(null);
                 setTwoFactorCode('');
                 setError(null);
               }}
-              className="w-full py-2 bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white text-xs font-semibold flex items-center justify-center space-x-1 transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Terug naar inloggen</span>
-            </button>
-          </form>
-        ) : (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">E-mailadres</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="bestuurder@voorbeeld.nl"
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-accent-500 shadow-sm font-medium"
-                  />
+              loading={loading}
+              lang={lang}
+            />
+          ) : (
+            <>
+              {hasUsers && (
+                <div className="mb-4 space-y-3">
+                  <GuestLoginButton onError={(msg) => setError(msg)} />
+                  <div className="relative flex py-1 items-center">
+                    <div className="flex-grow border-t border-slate-800"></div>
+                    <span className="shrink-0 mx-3 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                      {lang === 'nl' ? 'of inloggen met account' : 'or sign in with account'}
+                    </span>
+                    <div className="flex-grow border-t border-slate-800"></div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Wachtwoord</label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-accent-500 shadow-sm"
+              <div className="space-y-4 text-xs">
+                {/* Prominent Biometric Passkey Login Button */}
+                {hasUsers && (
+                  <PasskeyAuthSection
+                    onPasskeyLogin={handlePasskey}
+                    onRecoveryLogin={handleRecovery}
+                    loading={loading}
+                    passkeyAvailable={passkeyAvailable}
                   />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center space-x-2 text-slate-600 dark:text-slate-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-accent-600 focus:ring-accent-500/20"
-                  />
-                  <span className="text-[11px] font-medium">Blijf ingelogd</span>
-                </label>
-
-                <Link
-                  to="/forgot-password"
-                  className="text-[11px] font-bold text-accent-600 dark:text-accent-400 hover:underline"
-                >
-                  Wachtwoord vergeten?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-accent-600 text-white hover:bg-accent-700 rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center space-x-2 mt-3 shadow-md hover:scale-[1.01]"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                <span>{loading ? 'Bezig met inloggen...' : 'Inloggen'}</span>
-              </button>
-            </form>
-
-            {/* OIDC / SSO Button */}
-            {oidcConfig?.enabled && (
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <a
-                  href="/api/auth/oidc/login"
-                  className="w-full py-2.5 bg-accent-600 hover:bg-accent-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center space-x-2 shadow-sm hover:scale-[1.01]"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>{oidcConfig.buttonLabel || 'Inloggen met Single Sign-On (SSO / OIDC)'}</span>
-                </a>
-              </div>
-            )}
-
-            {hasUsers && (
-              <div className="mt-3 space-y-2 text-xs">
-                <button
-                  type="button"
-                  onClick={handlePasskey}
-                  disabled={loading || !passkeyAvailable}
-                  title={!passkeyAvailable ? passkeyUnavailableReason || undefined : undefined}
-                  className="w-full py-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  <Fingerprint className="w-4 h-4" />
-                  <span>{t('loginWithPasskey')}</span>
-                </button>
-                {!passkeyAvailable && passkeyUnavailableReason && (
-                  <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{passkeyUnavailableReason}</p>
                 )}
 
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    aria-expanded={showRecovery}
-                    aria-controls="recovery-panel"
-                    onClick={() => setShowRecovery((v) => !v)}
-                    className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:underline"
-                  >
-                    {t('lostDevice')}
-                  </button>
-                </div>
-                {/* Kept in the DOM and hidden with the attribute, so aria-controls always points at something real. */}
-                <form id="recovery-panel" hidden={!showRecovery} onSubmit={handleRecovery} className="space-y-2 [&[hidden]]:hidden">
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold" htmlFor="recovery-code">
-                    {t('recoveryCode')}
-                  </label>
-                  <input
-                    id="recovery-code"
-                    type="text"
-                    required
-                    autoComplete="off"
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                    value={recoveryCode}
-                    onChange={(e) => setRecoveryCode(e.target.value)}
-                    placeholder="XXXX-XXXX-XXXX-XXXX"
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-accent-500 shadow-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2 bg-slate-900 text-white hover:bg-black dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white rounded-xl font-bold transition disabled:opacity-50"
-                  >
-                    {t('loginWithRecoveryCode')}
-                  </button>
-                </form>
-              </div>
-            )}
-          </>
-        )}
+                <EmailLoginForm
+                  email={email}
+                  setEmail={setEmail}
+                  password={password}
+                  setPassword={setPassword}
+                  rememberMe={rememberMe}
+                  setRememberMe={setRememberMe}
+                  loading={loading}
+                  lang={lang}
+                  onSubmit={handleSubmit}
+                />
 
-        <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-4">
-          <span>Nog geen account aangemaakt? </span>
-          <Link to="/register" className="text-accent-600 dark:text-accent-400 hover:underline font-bold">
-            Account Registreren
-          </Link>
+                <LoginOidcSection oidcConfig={oidcConfig} />
+              </div>
+            </>
+          )}
+
+          <div className="mt-6 text-center text-xs text-slate-500 border-t border-slate-800/80 pt-4">
+            <span>{lang === 'nl' ? 'Nog geen account? ' : 'No account yet? '}</span>
+            <Link to="/register" className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold">
+              {lang === 'nl' ? 'Account Registreren' : 'Register Account'}
+            </Link>
+          </div>
+        </div>
+
+        {/* Small Bottom Status */}
+        <div className="text-center text-[11px] text-slate-600 mt-6 lg:mt-0">
+          <span>VehicleVault • Self-Hosted Fleet Platform</span>
         </div>
       </div>
     </div>

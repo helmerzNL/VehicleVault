@@ -5,7 +5,8 @@ import {
   setSystemSetting,
   maskApiKey,
 } from '../services/aiReceiptService.js';
-import { isAuthDisabled } from '../middleware/auth.js';
+import { isAuthDisabled, isProxyAuthEnabled } from '../middleware/auth.js';
+import { env } from '../config/env.js';
 
 export class SettingsController {
   public static async getAiSettings(_req: Request, res: Response): Promise<void> {
@@ -158,11 +159,15 @@ export class SettingsController {
 
   public static async getSecuritySettings(_req: Request, res: Response): Promise<void> {
     try {
-      const isEnvEnforced = Boolean(process.env.DISABLE_AUTH === 'true' || process.env.AUTH_DISABLED === 'true');
+      const isEnvEnforced = env.DISABLE_AUTH;
       const disableAuth = isAuthDisabled();
+      const allowGuestAccess = getSystemSetting('allow_guest_access') !== 'false';
+      const enableProxyAuth = isProxyAuthEnabled();
       res.json({
         disableAuth,
         isEnvEnforced,
+        allowGuestAccess,
+        enableProxyAuth,
       });
     } catch (err: any) {
       res.status(500).json({ error: err?.message || 'Fout bij ophalen van beveiligingsinstellingen' });
@@ -171,22 +176,37 @@ export class SettingsController {
 
   public static async updateSecuritySettings(req: Request, res: Response): Promise<void> {
     try {
-      const { disableAuth } = req.body;
-      const isEnvEnforced = Boolean(process.env.DISABLE_AUTH === 'true' || process.env.AUTH_DISABLED === 'true');
-      if (isEnvEnforced) {
-        res.status(400).json({
-          error: 'Inloggen is geconfigureerd via omgevingsvariabele (DISABLE_AUTH) en kan niet worden gewijzigd via de webinterface.',
-        });
-        return;
+      const { disableAuth, allowGuestAccess, enableProxyAuth } = req.body;
+      const isEnvEnforced = env.DISABLE_AUTH;
+
+      if (disableAuth !== undefined) {
+        if (isEnvEnforced) {
+          res.status(400).json({
+            error: 'Inloggen is geconfigureerd via omgevingsvariabele (DISABLE_AUTH) en kan niet worden gewijzigd via de webinterface.',
+          });
+          return;
+        }
+        setSystemSetting('disable_auth', disableAuth ? 'true' : 'false');
       }
 
-      setSystemSetting('disable_auth', disableAuth ? 'true' : 'false');
+      if (allowGuestAccess !== undefined) {
+        setSystemSetting('allow_guest_access', allowGuestAccess ? 'true' : 'false');
+      }
+
+      if (enableProxyAuth !== undefined) {
+        setSystemSetting('enable_proxy_auth', enableProxyAuth ? 'true' : 'false');
+      }
+
+      const currentGuest = getSystemSetting('allow_guest_access') !== 'false';
+      const currentAuth = isAuthDisabled();
+      const currentProxy = isProxyAuthEnabled();
+
       res.json({
         success: true,
-        disableAuth: Boolean(disableAuth),
-        message: disableAuth
-          ? 'Inloggen is succesvol uitgeschakeld. Je hebt nu direct toegang zonder wachtwoord (ideaal voor Pangolin / Reverse Proxy).'
-          : 'Inloggen is weer ingeschakeld.',
+        disableAuth: currentAuth,
+        allowGuestAccess: currentGuest,
+        enableProxyAuth: currentProxy,
+        message: 'Beveiligingsinstellingen succesvol bijgewerkt.',
       });
     } catch (err: any) {
       res.status(500).json({ error: err?.message || 'Fout bij opslaan van beveiligingsinstellingen' });
@@ -202,6 +222,7 @@ export class SettingsController {
         tires: true,
         fixedExpenses: true,
         documents: true,
+        vignettes: true,
         analytics: true,
       };
 
@@ -235,6 +256,7 @@ export class SettingsController {
         tires: true,
         fixedExpenses: true,
         documents: true,
+        vignettes: true,
         analytics: true,
       };
 

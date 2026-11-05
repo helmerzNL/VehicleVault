@@ -33,12 +33,23 @@ const categoryTranslations: Record<string, { nl: string; en: string }> = {
   'Algemene Inspectie / Maatwerk': { nl: 'Algemene Inspectie / Maatwerk', en: 'General Inspection / Custom' },
 };
 
+function getInitialLanguage(): Language {
+  const saved = localStorage.getItem('vv_lang');
+  if (saved === 'nl' || saved === 'en') return saved;
+
+  if (typeof navigator !== 'undefined') {
+    const navLang = (navigator.language || (navigator as any).userLanguage || '').toLowerCase();
+    const navLangs = navigator.languages ? Array.from(navigator.languages).map((l) => l.toLowerCase()) : [];
+    if (navLang.startsWith('nl') || navLangs.some((l) => l.startsWith('nl'))) {
+      return 'nl';
+    }
+  }
+
+  return 'en';
+}
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [lang, setLangState] = useState<Language>(() => {
-    const saved = localStorage.getItem('vv_lang');
-    if (saved === 'nl' || saved === 'en') return saved;
-    return 'nl'; // Default to Dutch as requested by user, with instant English switch
-  });
+  const [lang, setLangState] = useState<Language>(getInitialLanguage);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);

@@ -49,19 +49,25 @@ export class StationService {
    * Find gas stations near GPS coordinates via OpenStreetMap Nominatim.
    */
   public static async findNearbyStations(lat: number, lon: number, radiusKm = 7): Promise<GasStationResult[]> {
+    // If radius was sent in meters (e.g. 15000), convert to km. Clamp between 1 and 30 km.
+    let effectiveRadius = radiusKm > 50 ? radiusKm / 1000 : radiusKm;
+    effectiveRadius = Math.min(Math.max(effectiveRadius, 1), 30);
+
     // Cache key bucketed to ~1km grid
-    const cacheKey = `nearby_${lat.toFixed(2)}_${lon.toFixed(2)}_${radiusKm}`;
+    const cacheKey = `nearby_${lat.toFixed(2)}_${lon.toFixed(2)}_${effectiveRadius.toFixed(1)}`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
       return cached.data;
     }
 
-    // 1 deg lat ~ 111 km. Compute bounding box.
-    const delta = (radiusKm / 111) * 1.2;
-    const minLat = lat - delta;
-    const maxLat = lat + delta;
-    const minLon = lon - delta;
-    const maxLon = lon + delta;
+    // 1 deg lat ~ 111 km. Compute bounding box using latitude-adjusted longitude.
+    const deltaLat = (effectiveRadius / 111) * 1.1;
+    const cosLat = Math.cos(lat * (Math.PI / 180));
+    const deltaLon = deltaLat / (cosLat > 0.1 ? cosLat : 1);
+    const minLat = lat - deltaLat;
+    const maxLat = lat + deltaLat;
+    const minLon = lon - deltaLon;
+    const maxLon = lon + deltaLon;
 
     const viewbox = `${minLon.toFixed(4)},${maxLat.toFixed(4)},${maxLon.toFixed(4)},${minLat.toFixed(4)}`;
     const url = `https://nominatim.openstreetmap.org/search?q=fuel&format=json&viewbox=${viewbox}&bounded=1&addressdetails=1&limit=25`;

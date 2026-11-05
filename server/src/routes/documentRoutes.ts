@@ -26,6 +26,7 @@ const documentUploadMiddleware = (req: any, res: any, next: any) => {
 };
 
 router.get('/:vehicleId', DocumentController.list);
+router.post('/scan', uploadLimiter, documentUploadMiddleware, DocumentController.scanDocument);
 router.post('/:vehicleId', uploadLimiter, documentUploadMiddleware, DocumentController.upload);
 router.put('/:id', DocumentController.update);
 router.delete('/:id', DocumentController.delete);

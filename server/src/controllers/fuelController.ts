@@ -11,24 +11,26 @@ import { FuelExportService } from '../services/fuelExportService.js';
 import { getVehicleAccess } from '../utils/vehicleAccess.js';
 
 const fuelSchema = z.object({
-  vehicle_id: z.string().uuid(),
+  vehicle_id: z.string().min(1),
   date: z.string(),
-  odometer: z.number().positive(),
+  odometer: z.union([z.number(), z.string().transform((v) => parseInt(v, 10))]).pipe(z.number().positive()),
   energy_type: z.enum(['fuel', 'electric']).default('fuel'),
-  liters: z.number().nonnegative().default(0),
-  price_per_liter: z.number().nonnegative().default(0),
-  kwh: z.number().nonnegative().optional().nullable(),
-  price_per_kwh: z.number().nonnegative().optional().nullable(),
-  total_cost: z.number().positive().optional(),
-  is_full_tank: z.boolean().default(true),
-  missed_previous: z.boolean().default(false),
-  is_towing: z.boolean().default(false),
+  liters: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).default(0),
+  fuel_amount: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
+  price_per_liter: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).default(0),
+  price_per_unit: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
+  kwh: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional().nullable(),
+  price_per_kwh: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional().nullable(),
+  total_cost: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
+  is_full_tank: z.union([z.boolean(), z.number()]).transform((v) => Boolean(v)).default(true),
+  missed_previous: z.union([z.boolean(), z.number()]).transform((v) => Boolean(v)).default(false),
+  is_towing: z.union([z.boolean(), z.number()]).transform((v) => Boolean(v)).default(false),
   notes: z.string().optional().nullable(),
   receipt_path: z.string().optional().nullable(),
   station_name: z.string().optional().nullable(),
   station_address: z.string().optional().nullable(),
-  latitude: z.number().optional().nullable(),
-  longitude: z.number().optional().nullable(),
+  latitude: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional().nullable(),
+  longitude: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional().nullable(),
 });
 
 export class FuelController {
@@ -82,12 +84,15 @@ export class FuelController {
       warnings.push(`Large odometer delta (${data.odometer - highestOdo} km since last entry). Consider checking "Missed Previous Fill-up".`);
     }
 
+    const effectiveLiters = data.liters > 0 ? data.liters : (data.fuel_amount || 0);
+    const effectivePrice = data.price_per_liter > 0 ? data.price_per_liter : (data.price_per_unit || 0);
+
     let calculatedCost = data.total_cost;
     if (!calculatedCost) {
       if (data.energy_type === 'electric') {
         calculatedCost = Math.round((data.kwh || 0) * (data.price_per_kwh || 0) * 100) / 100;
       } else {
-        calculatedCost = Math.round(data.liters * data.price_per_liter * 100) / 100;
+        calculatedCost = Math.round(effectiveLiters * effectivePrice * 100) / 100;
       }
     }
     const id = crypto.randomUUID();
@@ -104,8 +109,8 @@ export class FuelController {
         data.vehicle_id,
         data.date,
         data.odometer,
-        data.liters,
-        data.price_per_liter,
+        effectiveLiters,
+        effectivePrice,
         calculatedCost,
         data.is_full_tank ? 1 : 0,
         data.missed_previous ? 1 : 0,
@@ -160,7 +165,7 @@ export class FuelController {
     const { id } = req.params;
     const data = req.body;
 
-    const existing = db.get<{ id: string; vehicle_id: string }>('SELECT id, vehicle_id FROM fuel_entries WHERE id = ?', [id]);
+    const existing = db.get<any>('SELECT * FROM fuel_entries WHERE id = ?', [id]);
 
     if (!existing) {
       res.status(404).json({ error: 'Fuel entry not found' });
@@ -180,14 +185,21 @@ export class FuelController {
       return;
     }
 
+    const effectiveLiters = data.liters !== undefined ? data.liters : (data.fuel_amount !== undefined ? data.fuel_amount : existing.liters);
+    const effectivePrice = data.price_per_liter !== undefined ? data.price_per_liter : (data.price_per_unit !== undefined ? data.price_per_unit : existing.price_per_liter);
+
     let calculatedCost = data.total_cost;
     if (!calculatedCost) {
-      if (data.energy_type === 'electric') {
+      if ((data.energy_type || existing.energy_type) === 'electric') {
         calculatedCost = Math.round((data.kwh || 0) * (data.price_per_kwh || 0) * 100) / 100;
       } else {
-        calculatedCost = Math.round(data.liters * data.price_per_liter * 100) / 100;
+        calculatedCost = Math.round(effectiveLiters * effectivePrice * 100) / 100;
       }
     }
+
+    const isFullTank = data.is_full_tank !== undefined ? (data.is_full_tank ? 1 : 0) : existing.is_full_tank;
+    const isMissed = data.missed_previous !== undefined ? (data.missed_previous ? 1 : 0) : existing.missed_previous;
+    const isTowing = data.is_towing !== undefined ? (data.is_towing ? 1 : 0) : (existing.is_towing || 0);
 
     db.run(
       `UPDATE fuel_entries SET
@@ -210,23 +222,23 @@ export class FuelController {
         is_towing = ?
        WHERE id = ?`,
       [
-        data.date,
-        data.odometer,
-        data.liters,
-        data.price_per_liter,
+        data.date !== undefined ? data.date : existing.date,
+        data.odometer !== undefined ? data.odometer : existing.odometer,
+        effectiveLiters,
+        effectivePrice,
         calculatedCost,
-        data.is_full_tank ? 1 : 0,
-        data.missed_previous ? 1 : 0,
-        data.notes !== undefined ? data.notes : null,
-        data.receipt_path !== undefined ? data.receipt_path : null,
-        data.station_name !== undefined ? data.station_name : null,
-        data.station_address !== undefined ? data.station_address : null,
-        data.latitude !== undefined ? data.latitude : null,
-        data.longitude !== undefined ? data.longitude : null,
+        isFullTank,
+        isMissed,
+        data.notes !== undefined ? data.notes : existing.notes,
+        data.receipt_path !== undefined ? data.receipt_path : existing.receipt_path,
+        data.station_name !== undefined ? data.station_name : existing.station_name,
+        data.station_address !== undefined ? data.station_address : existing.station_address,
+        data.latitude !== undefined ? data.latitude : existing.latitude,
+        data.longitude !== undefined ? data.longitude : existing.longitude,
         data.energy_type || null,
-        data.kwh !== undefined ? data.kwh : null,
-        data.price_per_kwh !== undefined ? data.price_per_kwh : null,
-        data.is_towing ? 1 : 0,
+        data.kwh !== undefined ? data.kwh : existing.kwh,
+        data.price_per_kwh !== undefined ? data.price_per_kwh : existing.price_per_kwh,
+        isTowing,
         id,
       ]
     );
@@ -239,7 +251,10 @@ export class FuelController {
       res.status(400).json({ error: 'No receipt or invoice file uploaded' });
       return;
     }
-    res.json({ fileName: req.file.filename });
+    res.json({
+      fileName: req.file.filename,
+      filePath: req.file.filename,
+    });
   }
 
   public static async ocrReceipt(req: Request, res: Response): Promise<void> {
@@ -255,7 +270,18 @@ export class FuelController {
       const result = await OcrService.processReceipt(filePath);
       res.json({
         receiptPath: fileName,
+        filePath: fileName,
         extracted: result,
+        data: {
+          date: result.date,
+          liters: result.liters,
+          pricePerUnit: result.pricePerLiter,
+          totalCost: result.totalCost,
+          stationName: result.station,
+          stationAddress: result.stationAddress,
+          fuelType: result.fuelType,
+        },
+        success: true,
       });
     } catch (err: any) {
       res.status(500).json({ error: `OCR error: ${err?.message || 'Processing failed'}` });

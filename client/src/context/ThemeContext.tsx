@@ -32,7 +32,11 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem('vv_theme') as Theme) || 'dark';
+    const saved = localStorage.getItem('vv_theme') as Theme;
+    if (saved === 'dark' || saved === 'light' || saved === 'system') {
+      return saved;
+    }
+    return 'system';
   });
 
   const [accentColor, setAccentColorState] = useState<AccentColor>(() => {

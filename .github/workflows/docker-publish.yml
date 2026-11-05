@@ -87,32 +87,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Clean up legacy v1.0.x releases and publish v2.0.0 Release
+      - name: Publish Official Release & Sync Wiki
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Remove any legacy v1.0.x GitHub Releases
-          for old_tag in $(gh release list --limit 50 --json tagName -q '.[].tagName' | grep '^v1\.0\.' || true); do
-            echo "Deleting legacy release: $old_tag"
-            gh release delete "$old_tag" --yes --cleanup-tag || true
-          done
+          VERSION=$(node -p "require('./package.json').version")
+          TAG_NAME="v${VERSION}"
+          echo "Releasing version: $TAG_NAME"
 
-          # Create or update the official v2.0.0 Release
-          if gh release view v2.0.0 >/dev/null 2>&1; then
-            gh release edit v2.0.0 \
-              --title "VehicleVault v2.0.0 — Official Production Release" \
-              --notes-file RELEASE_NOTES.md \
+          NOTES_FILE="RELEASE_NOTES.md"
+          if [ -f "docs/releases/${TAG_NAME}.md" ]; then
+            NOTES_FILE="docs/releases/${TAG_NAME}.md"
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" \
+              --title "VehicleVault $TAG_NAME — Production Release" \
+              --notes-file "$NOTES_FILE" \
               --latest
           else
-            gh release create v2.0.0 \
-              --title "VehicleVault v2.0.0 — Official Production Release" \
-              --notes-file RELEASE_NOTES.md \
+            gh release create "$TAG_NAME" \
+              --title "VehicleVault $TAG_NAME — Production Release" \
+              --notes-file "$NOTES_FILE" \
               --latest
           fi
+
+          # Harmonize historical releases with isolated, clean release notes
+          for release_doc in docs/releases/*.md; do
+            [ -e "$release_doc" ] || continue
+            BASE_NAME=$(basename "$release_doc" .md)
+            if [ "$BASE_NAME" != "$TAG_NAME" ] && gh release view "$BASE_NAME" >/dev/null 2>&1; then
+              echo "Synchronizing release notes for $BASE_NAME..."
+              gh release edit "$BASE_NAME" \
+                --title "VehicleVault $BASE_NAME — Production Release" \
+                --notes-file "$release_doc" || true
+            fi
+          done
 
       - name: Publish docs/wiki to GitHub Wiki (if initialized)
         continue-on-error: true
         run: |
+          VERSION=$(node -p "require('./package.json').version")
           WIKI_URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git"
           if git clone "$WIKI_URL" /tmp/wiki_repo 2>/dev/null; then
             cp -r docs/wiki/*.md /tmp/wiki_repo/
@@ -121,7 +136,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
             if ! git diff --cached --quiet; then
-              git commit -m "docs(wiki): sync VehicleVault v2.0.0 documentation"
+              git commit -m "docs(wiki): sync VehicleVault v${VERSION} documentation"
               git push origin HEAD
             fi
           else

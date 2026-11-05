@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { ThemeProvider } from './context/ThemeContext.js';
 import { LanguageProvider } from './context/LanguageContext.js';
@@ -15,12 +16,25 @@ import { AnalyticsTco } from './pages/AnalyticsTco.js';
 import { FixedExpenses } from './pages/FixedExpenses.js';
 import { Trips } from './pages/Trips.js';
 import { Tires } from './pages/Tires.js';
+import { Vignettes } from './pages/Vignettes.js';
 import { Settings } from './pages/Settings.js';
+import { Profile } from './pages/Profile.js';
+import { Importer } from './pages/Importer.js';
 import { Login } from './pages/Login.js';
 import { Register } from './pages/Register.js';
 import { ForgotPassword } from './pages/ForgotPassword.js';
 import { ResetPassword } from './pages/ResetPassword.js';
 import { PublicShowcase } from './pages/PublicShowcase.js';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -42,11 +56,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <ModuleProvider>
-          <AuthProvider>
-            <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <LanguageProvider>
+          <ModuleProvider>
+            <AuthProvider>
+              <BrowserRouter>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -70,9 +85,11 @@ export const App: React.FC = () => {
                   <Route path="trips" element={<Trips />} />
                   <Route path="maintenance" element={<Maintenance />} />
                   <Route path="tires" element={<Tires />} />
+                  <Route path="vignettes" element={<Vignettes />} />
                   <Route path="documents" element={<Documents />} />
                   <Route path="analytics" element={<AnalyticsTco />} />
-                  <Route path="import" element={<Navigate to="/settings?tab=import" replace />} />
+                  <Route path="profile" element={<Profile />} />
+                  <Route path="import" element={<Importer />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
 
@@ -83,6 +100,7 @@ export const App: React.FC = () => {
         </ModuleProvider>
       </LanguageProvider>
     </ThemeProvider>
+  </QueryClientProvider>
   );
 };
 

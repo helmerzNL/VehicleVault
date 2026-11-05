@@ -6,7 +6,14 @@ VehicleVault integrates with your smart home, calendar apps, and AI coding/chat 
 
 ## 1. Home Assistant Integration
 
-Navigate to **Settings → Home Assistant** to generate ready-to-copy YAML snippets and API keys.
+### Multi-Tenant Per-User Home Assistant Isolation
+Starting in **v3.3.2**, Home Assistant is no longer bound to a single server-wide instance:
+- **Individual User Configuration:** Every registered user on the server (whether a family member, parent, or friend) can navigate to **Settings → Home Assistant** or their **Profile** and configure their own **Home Assistant Base URL** and **Long-Lived Access Token**.
+- **Isolated Sensor Discovery:** When selecting an odometer sensor for a vehicle, VehicleVault queries the Home Assistant instance belonging to that vehicle's owner.
+- **Dedicated Vehicle Odometer Sync:** Scheduled background synchronization queries each vehicle against its respective owner's Home Assistant instance. If User A and User B have separate smart homes, both sync cleanly and independently without colliding.
+- **Testing:** Users can click **Test Verbinding (Test Connection)** to verify connectivity directly against their personal Home Assistant instance.
+
+Navigate to **Settings → Home Assistant** to configure your personal connection, discover entities, or generate ready-to-copy YAML snippets and API keys.
 
 ### Outbound: Vehicle Sensors (`GET /api/integrations/ha/states`)
 Exposes all active vehicles with their current odometer, APK expiration date & countdown days, fuel consumption (`L/100km` and `km/L`), TCO metrics, and maintenance interval statuses:

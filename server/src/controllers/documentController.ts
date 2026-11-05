@@ -5,6 +5,8 @@ import { Request, Response } from 'express';
 import { db } from '../db/database.js';
 import { DATA_PATHS } from '../config/env.js';
 import { getVehicleAccess } from '../utils/vehicleAccess.js';
+import { DocumentScanner } from '../services/ai/documentScanner.js';
+import { AiReceiptService } from '../services/aiReceiptService.js';
 
 export class DocumentController {
   public static async list(req: Request, res: Response): Promise<void> {
@@ -195,5 +197,49 @@ export class DocumentController {
     db.run('DELETE FROM vehicle_documents WHERE id = ?', [id]);
 
     res.json({ success: true, message: 'Document deleted' });
+  }
+
+  public static async scanDocument(req: Request, res: Response): Promise<void> {
+    if (!req.file) {
+      res.status(400).json({ error: 'No document file uploaded' });
+      return;
+    }
+
+    const rawLang = (req.body?.lang || req.query?.lang || 'nl') as string;
+    const targetLang: 'nl' | 'en' = rawLang === 'en' ? 'en' : 'nl';
+    const aiConfigured = AiReceiptService.isConfigured();
+
+    if (!aiConfigured) {
+      if (fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+      res.json({
+        aiConfigured: false,
+        extraction: null,
+        warning:
+          targetLang === 'nl'
+            ? 'Geen AI API-sleutel (Gemini / OpenAI) geconfigureerd in Instellingen. Vul de velden handmatig in.'
+            : 'No AI API key (Gemini / OpenAI) configured in Settings. Please fill fields manually.',
+      });
+      return;
+    }
+
+    try {
+      const extraction = await DocumentScanner.analyzeDocument(req.file.path, targetLang);
+      res.json({
+        aiConfigured: true,
+        extraction,
+      });
+    } catch (err: any) {
+      res.json({
+        aiConfigured: true,
+        extraction: null,
+        warning: err?.message || (targetLang === 'nl' ? 'AI kon het document niet automatisch uitlezen.' : 'AI could not automatically read the document.'),
+      });
+    } finally {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+    }
   }
 }

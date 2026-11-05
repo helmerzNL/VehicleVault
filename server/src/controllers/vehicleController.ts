@@ -1,29 +1,11 @@
-import crypto from 'node:crypto';
 import { Request, Response } from 'express';
-import { z } from 'zod';
 import { db } from '../db/database.js';
 import { RdwService } from '../services/rdwService.js';
 import { CalendarService } from '../services/calendarService.js';
 import { getVehicleAccess } from '../utils/vehicleAccess.js';
-
-const vehicleSchema = z.object({
-  name: z.string().min(1).max(100),
-  type: z.enum(['car', 'motorcycle', 'trailer', 'van']).default('car'),
-  license_plate: z.string().optional().nullable(),
-  vin: z.string().optional().nullable(),
-  year: z.number().int().optional().nullable(),
-  make: z.string().optional().nullable(),
-  model: z.string().optional().nullable(),
-  fuel_type: z.string().optional().nullable(),
-  purchase_date: z.string().optional().nullable(),
-  purchase_price: z.number().nonnegative().default(0),
-  initial_odometer: z.number().nonnegative().default(0),
-  notes: z.string().optional().nullable(),
-  status: z.enum(['active', 'archived']).default('active'),
-  apk_expiration_date: z.string().optional().nullable(),
-  plate_country: z.enum(['NL', 'BE', 'DE', 'EU', 'OTHER']).default('NL'),
-  image_path: z.string().optional().nullable(),
-});
+import { vehicleSchema, enrichVehicle } from './vehicles/vehicleHelpers.js';
+import { executeVehicleCreate, executeVehicleUpdate } from './vehicles/vehicleMutations.js';
+import { VehicleShareController } from './vehicleShareController.js';
 
 export class VehicleController {
   public static async list(req: Request, res: Response): Promise<void> {
@@ -62,19 +44,7 @@ export class VehicleController {
       sql += ' GROUP BY v.id ORDER BY v.created_at DESC';
       const vehicles = db.query(sql, params);
 
-      // Evaluate APK status for each vehicle
-      const enriched = vehicles.map((v) => {
-        const apk = RdwService.evaluateApkStatus(v.apk_expiration_date);
-        return {
-          ...v,
-          is_owner: Boolean(v.is_owner),
-          is_showcase_active: v.is_showcase_active === 1,
-          showcase_slug: v.showcase_slug || undefined,
-          apk_status: apk,
-        };
-      });
-
-      res.json({ vehicles: enriched });
+      res.json({ vehicles: vehicles.map(enrichVehicle) });
     } catch (err: any) {
       console.error('List vehicles error:', err);
       res.status(500).json({ error: 'Failed to list vehicles' });
@@ -85,7 +55,7 @@ export class VehicleController {
     try {
       const { id } = req.params;
       const userId = req.user?.userId;
-      const access = getVehicleAccess(id, userId);
+      const access = getVehicleAccess(id, userId, req.user?.role);
 
       if (!access.hasAccess && req.user?.role !== 'admin') {
         res.status(404).json({ error: 'Vehicle not found' });
@@ -117,15 +87,7 @@ export class VehicleController {
         return;
       }
 
-      res.json({
-        vehicle: {
-          ...vehicle,
-          is_owner: Boolean(vehicle.is_owner),
-          is_showcase_active: vehicle.is_showcase_active === 1,
-          showcase_slug: vehicle.showcase_slug || undefined,
-          apk_status: RdwService.evaluateApkStatus(vehicle.apk_expiration_date),
-        },
-      });
+      res.json({ vehicle: enrichVehicle(vehicle) });
     } catch (err: any) {
       console.error('Get vehicle error:', err);
       res.status(500).json({ error: 'Failed to get vehicle' });
@@ -140,80 +102,7 @@ export class VehicleController {
         return;
       }
 
-      const data = parse.data;
-      const id = crypto.randomUUID();
-      const now = new Date().toISOString();
-
-      let rdwData: any = null;
-      let apkDate = data.apk_expiration_date;
-      const plateCountry = data.plate_country || 'NL';
-
-      // If Dutch license plate is supplied, attempt RDW lookup
-      if (data.license_plate && plateCountry === 'NL') {
-        const rdw = await RdwService.fetchVehicleByPlate(data.license_plate);
-        if (rdw) {
-          rdwData = rdw.raw;
-          apkDate = apkDate || rdw.vervaldatum_apk;
-          if (!data.make && rdw.merk) data.make = rdw.merk;
-          if (!data.model && rdw.handelsbenaming) data.model = rdw.handelsbenaming;
-          if (!data.fuel_type && rdw.brandstof_omschrijving) data.fuel_type = rdw.brandstof_omschrijving;
-          if (!data.purchase_date && rdw.datum_tenaamstelling) data.purchase_date = rdw.datum_tenaamstelling;
-        }
-      }
-
-      db.run(
-        `INSERT INTO vehicles (
-          id, user_id, name, type, license_plate, vin, year, make, model,
-          fuel_type, purchase_date, purchase_price, initial_odometer,
-          notes, status, rdw_data, apk_expiration_date, plate_country, image_path, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          req.user?.userId,
-          data.name,
-          data.type,
-          data.license_plate ? (plateCountry === 'NL' ? RdwService.normalizePlate(data.license_plate) : data.license_plate.trim().toUpperCase()) : null,
-          data.vin || null,
-          data.year || null,
-          data.make || null,
-          data.model || null,
-          data.fuel_type || null,
-          data.purchase_date || null,
-          data.purchase_price,
-          data.initial_odometer,
-          data.notes || null,
-          data.status,
-          rdwData ? JSON.stringify(rdwData) : null,
-          apkDate || null,
-          plateCountry,
-          data.image_path || null,
-          now,
-          now,
-        ]
-      );
-
-      // Auto-create default maintenance interval categories for this vehicle
-      const categories = db.query<any>('SELECT * FROM service_categories WHERE is_preset = 1');
-      for (const cat of categories) {
-        db.run(
-          `INSERT INTO maintenance_intervals (
-            id, vehicle_id, category_id, custom_name, interval_km, interval_months,
-            last_service_date, last_service_odometer, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            crypto.randomUUID(),
-            id,
-            cat.id,
-            cat.name,
-            cat.default_distance_interval,
-            cat.default_time_months,
-            data.purchase_date || now.split('T')[0],
-            data.initial_odometer,
-            now,
-          ]
-        );
-      }
-
+      const id = await executeVehicleCreate(req.user?.userId, parse.data);
       res.status(201).json({ id, message: 'Vehicle created successfully' });
     } catch (err: any) {
       console.error('Create vehicle error:', err);
@@ -230,63 +119,13 @@ export class VehicleController {
         return;
       }
 
-      const access = getVehicleAccess(id, req.user?.userId);
+      const access = getVehicleAccess(id, req.user?.userId, req.user?.role);
       if (!access.hasAccess || (!access.isOwner && access.role !== 'editor')) {
         res.status(403).json({ error: 'Geen bewerkrechten voor dit voertuig' });
         return;
       }
-      const existing = access.vehicle;
 
-      const data = parse.data;
-      const now = new Date().toISOString();
-
-      const name = data.name !== undefined ? data.name : existing.name;
-      const type = data.type !== undefined ? data.type : existing.type;
-      const plate_country = data.plate_country !== undefined ? data.plate_country : (existing.plate_country || 'NL');
-      const license_plate = data.license_plate !== undefined
-        ? (data.license_plate ? (plate_country === 'NL' ? RdwService.normalizePlate(data.license_plate) : data.license_plate.trim().toUpperCase()) : null)
-        : existing.license_plate;
-      const vin = data.vin !== undefined ? data.vin : existing.vin;
-      const year = data.year !== undefined ? data.year : existing.year;
-      const make = data.make !== undefined ? data.make : existing.make;
-      const model = data.model !== undefined ? data.model : existing.model;
-      const fuel_type = data.fuel_type !== undefined ? data.fuel_type : existing.fuel_type;
-      const purchase_date = data.purchase_date !== undefined ? data.purchase_date : existing.purchase_date;
-      const purchase_price = data.purchase_price !== undefined ? data.purchase_price : existing.purchase_price;
-      const initial_odometer = data.initial_odometer !== undefined ? data.initial_odometer : existing.initial_odometer;
-      const notes = data.notes !== undefined ? data.notes : existing.notes;
-      const status = data.status !== undefined ? data.status : existing.status;
-      const apk_expiration_date = data.apk_expiration_date !== undefined ? data.apk_expiration_date : existing.apk_expiration_date;
-      const image_path = data.image_path !== undefined ? data.image_path : existing.image_path;
-
-      db.run(
-        `UPDATE vehicles SET
-          name = ?, type = ?, license_plate = ?, vin = ?, year = ?, make = ?, model = ?,
-          fuel_type = ?, purchase_date = ?, purchase_price = ?, initial_odometer = ?,
-          notes = ?, status = ?, apk_expiration_date = ?, plate_country = ?, image_path = ?, updated_at = ?
-         WHERE id = ?`,
-        [
-          name,
-          type,
-          license_plate,
-          vin,
-          year,
-          make,
-          model,
-          fuel_type,
-          purchase_date,
-          purchase_price,
-          initial_odometer,
-          notes,
-          status,
-          apk_expiration_date,
-          plate_country,
-          image_path,
-          now,
-          id,
-        ]
-      );
-
+      executeVehicleUpdate(id, access.vehicle, parse.data);
       res.json({ success: true, message: 'Vehicle updated' });
     } catch (err: any) {
       console.error('Update vehicle error:', err);
@@ -302,7 +141,7 @@ export class VehicleController {
         return;
       }
 
-      const access = getVehicleAccess(id, req.user?.userId);
+      const access = getVehicleAccess(id, req.user?.userId, req.user?.role);
       if (!access.hasAccess || (!access.isOwner && access.role !== 'editor')) {
         res.status(403).json({ error: 'Geen bewerkrechten voor dit voertuig' });
         return;
@@ -315,11 +154,7 @@ export class VehicleController {
         id,
       ]);
 
-      res.json({
-        success: true,
-        imagePath: imageFilename,
-        message: 'Vehicle image uploaded successfully',
-      });
+      res.json({ success: true, imagePath: imageFilename, message: 'Vehicle image uploaded successfully' });
     } catch (err: any) {
       console.error('Upload vehicle image error:', err);
       res.status(500).json({ error: err?.message || 'Failed to upload image' });
@@ -329,7 +164,7 @@ export class VehicleController {
   public static async delete(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const access = getVehicleAccess(id, req.user?.userId);
+      const access = getVehicleAccess(id, req.user?.userId, req.user?.role);
       if (!access.isOwner && req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Alleen de eigenaar kan dit voertuig verwijderen' });
         return;
@@ -340,106 +175,6 @@ export class VehicleController {
     } catch (err: any) {
       console.error('Delete vehicle error:', err);
       res.status(500).json({ error: err?.message || 'Failed to delete vehicle' });
-    }
-  }
-
-  public static async getShares(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const currentUserId = req.user?.userId;
-      const access = getVehicleAccess(id, currentUserId);
-      if (!access.isOwner && req.user?.role !== 'admin') {
-        res.status(403).json({ error: 'Alleen de eigenaar kan gedeelde gebruikers inzien' });
-        return;
-      }
-
-      const shares = db.query<any>(
-        `SELECT vs.id, vs.vehicle_id, vs.user_id, vs.role, vs.created_at, u.email
-         FROM vehicle_shares vs
-         JOIN users u ON u.id = vs.user_id
-         WHERE vs.vehicle_id = ?
-         ORDER BY vs.created_at ASC`,
-        [id]
-      );
-
-      res.json({ shares });
-    } catch (err: any) {
-      console.error('Get vehicle shares error:', err);
-      res.status(500).json({ error: 'Gedeelde gebruikers ophalen mislukt' });
-    }
-  }
-
-  public static async addShare(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const currentUserId = req.user?.userId;
-      const access = getVehicleAccess(id, currentUserId);
-      if (!access.isOwner && req.user?.role !== 'admin') {
-        res.status(403).json({ error: 'Alleen de eigenaar kan dit voertuig delen' });
-        return;
-      }
-
-      const { email, role = 'editor' } = req.body;
-      if (!email || typeof email !== 'string') {
-        res.status(400).json({ error: 'Geldig e-mailadres is verplicht' });
-        return;
-      }
-
-      const targetUser = db.get<any>('SELECT id, email FROM users WHERE email = ?', [email.trim().toLowerCase()]);
-      if (!targetUser) {
-        res.status(404).json({ error: 'Er is geen gebruiker gevonden met dit e-mailadres' });
-        return;
-      }
-
-      if (targetUser.id === access.vehicle?.user_id) {
-        res.status(400).json({ error: 'Dit voertuig is al eigendom van deze gebruiker' });
-        return;
-      }
-
-      const validRoles = ['editor', 'viewer'];
-      const targetRole = validRoles.includes(role) ? role : 'editor';
-
-      const shareId = crypto.randomUUID();
-      const now = new Date().toISOString();
-      db.run(
-        `INSERT INTO vehicle_shares (id, vehicle_id, user_id, role, created_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(vehicle_id, user_id) DO UPDATE SET role = excluded.role`,
-        [shareId, id, targetUser.id, targetRole, now]
-      );
-
-      res.status(201).json({
-        message: `Voertuig succesvol gedeeld met ${targetUser.email}`,
-        share: {
-          id: shareId,
-          vehicle_id: id,
-          user_id: targetUser.id,
-          email: targetUser.email,
-          role: targetRole,
-          created_at: now,
-        },
-      });
-    } catch (err: any) {
-      console.error('Add vehicle share error:', err);
-      res.status(500).json({ error: err?.message || 'Voertuig delen mislukt' });
-    }
-  }
-
-  public static async removeShare(req: Request, res: Response): Promise<void> {
-    try {
-      const { id, userId: targetUserId } = req.params;
-      const currentUserId = req.user?.userId;
-      const access = getVehicleAccess(id, currentUserId);
-      if (!access.isOwner && req.user?.role !== 'admin' && currentUserId !== targetUserId) {
-        res.status(403).json({ error: 'Alleen de eigenaar kan toegang intrekken' });
-        return;
-      }
-
-      db.run('DELETE FROM vehicle_shares WHERE vehicle_id = ? AND user_id = ?', [id, targetUserId]);
-      res.json({ message: 'Toegang succesvol ingetrokken' });
-    } catch (err: any) {
-      console.error('Remove vehicle share error:', err);
-      res.status(500).json({ error: 'Toegang intrekken mislukt' });
     }
   }
 
@@ -458,7 +193,7 @@ export class VehicleController {
     }
   }
 
-  public static async syncApk(req: Request, res: Response): Promise<void> {
+  public static async syncApk(_req: Request, res: Response): Promise<void> {
     try {
       const result = await RdwService.syncAllVehiclesApk();
       res.json(result);
@@ -480,4 +215,9 @@ export class VehicleController {
       res.status(500).json({ error: 'Failed to generate calendar export' });
     }
   }
+
+  // Delegated vehicle share operations
+  public static getShares = VehicleShareController.getShares;
+  public static addShare = VehicleShareController.addShare;
+  public static removeShare = VehicleShareController.removeShare;
 }

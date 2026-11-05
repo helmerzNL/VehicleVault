@@ -17,116 +17,85 @@ Under **Settings → Meldingen (Notifications)**, configure automated alerts for
 | **Ntfy.sh** | Self-hosted or public topic URL + optional Bearer access token |
 | **Gotify** | Server URL + Application Token |
 | **Webhook (Discord / Slack / Generic)** | Automatically formats rich embeds for Discord/Slack or dispatches a structured JSON payload |
-| **E-mail** | Sent through **Microsoft 365** (sign in), **Gmail** (connect with Google), **SMTP** or **Microsoft Graph** with your own app (see below). Recipients (`To`) may be several addresses separated by commas |
-
-### E-mail settings
-Under **Settings → Notifications → E-mail**, one configuration serves the alert e-mails and the password-reset links. Pick how VehicleVault sends: **Microsoft 365**, **Gmail**, **SMTP**, or **Microsoft Graph with your own app** (advanced). Everything is done in the page; nothing needs to be edited in a file.
-
-**Microsoft 365 — sign in with your account (no app registration)**
-1. Choose **Microsoft 365** and press **Aanmelden bij Microsoft 365**. VehicleVault asks Microsoft for a code and shows it.
-2. Open the Microsoft page that is shown, enter the code, sign in with the account the mail should come from (a work or school account with an Exchange Online mailbox) and allow sending mail.
-3. The page sees it is done and shows *Aangemeld als …*. **Check connection** and **Send test mail** confirm it.
-
-VehicleVault only asks for `Mail.Send` (it can send as that account, never read mail) and keeps just the refresh token, encrypted with a key derived from `JWT_SECRET`. By default it uses Microsoft's own public client "Microsoft Graph Command Line Tools", so there is nothing to register. If your organization blocks that client, create an app registration as a *public client* (device code flow on) with the delegated `Mail.Send` permission and enter its client ID (and tenant) under *Geavanceerd*. A personal Outlook.com account does not work here: use SMTP. If the sign-in expires (new password, revoked, 90 days unused) the page says so and you sign in again. Revoke it at Microsoft (*My account → My apps*) or with **Uit de app verwijderen**.
-
-**Gmail — connect with Google**
-Google's device-code flow does not allow the Gmail scopes, so Gmail uses the authorization-code flow with an OAuth client of your own. That is a one-time step in Google Cloud, explained in the page:
-1. Create a project, enable the **Gmail API**.
-2. OAuth consent screen: *External*, add the `gmail.send` scope and set the publishing status to **In production**. With *Testing*, Google expires the sign-in after 7 days.
-3. Credentials → *OAuth client ID* → *Web application* and add the redirect URL the page shows (it is `<your address>/api/notifications/mail/google/callback`; copy it with the button).
-4. Paste the client ID and secret, press **Verbinden met Google**, sign in and allow sending mail. Google warns that the app is not verified: choose *Advanced → continue*, it is your own app.
-
-Google only accepts an `https` redirect URL (or `localhost`). Behind a reverse proxy, set `PUBLIC_URL` to the address people use, so the shown URL is right. The client secret and the refresh token are stored encrypted; only `gmail.send` is requested.
-
-**SMTP** — Host, port (`587` STARTTLS / `465` SSL), user, password, sender (`From`). One-click presets fill in host, port and encryption:
-
-| Preset | Server | Notes |
-| :--- | :--- | :--- |
-| **Gmail** | `smtp.gmail.com:587` | Needs an app password (2-step verification on) |
-| **Microsoft 365** | `smtp.office365.com:587` | SMTP AUTH must be enabled for the mailbox; the sender must be that mailbox. Where SMTP AUTH is off, use Graph |
-| **Outlook.com** | `smtp-mail.outlook.com:587` | App password with 2-step verification |
-
-Under *Advanced*: **Require STARTTLS** (refuse to send unencrypted) and **Ignore certificate errors** (own mail server with a self-signed certificate only).
-
-**Microsoft Graph with your own app (advanced)** — sends with app-only credentials, so no SMTP AUTH and no password of a person:
-1. Microsoft Entra ID → *App registrations* → *New registration* (single tenant). Note the **Application (client) ID** and **Directory (tenant) ID**.
-2. *Certificates & secrets* → *New client secret*. Copy the **value** straight away.
-3. *API permissions* → *Microsoft Graph* → *Application permissions* → **Mail.Send** → *Grant admin consent*.
-4. Enter tenant ID, client ID, client secret and the **sender mailbox** (must exist in the tenant with an Exchange Online licence) in VehicleVault.
-
-`Mail.Send` as an application permission covers every mailbox in the tenant. Restrict the app to the sender mailbox with an *ApplicationAccessPolicy* in Exchange Online.
-
-**Check connection** verifies the login without sending anything (for Graph: tenant, client ID and secret; the `Mail.Send` permission itself is only proven by **Send test mail**). Failures are explained: wrong app password, SMTP AUTH disabled, TLS mode that does not match the port, unreachable server, a missing Graph permission, and so on. Secrets are never sent back to the browser; leaving a secret field untouched keeps the stored value.
-
-Settings can also come from the environment (`SMTP_*`, `SMTP_REQUIRE_TLS`, `SMTP_IGNORE_TLS_ERRORS`, `MAIL_TRANSPORT`, `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_SENDER`); values saved in the UI take precedence.
-
-### Web Push (PWA)
-VehicleVault sends Web Push messages (RFC 8030, signed with VAPID keys) straight to the push service of the browser (Google, Apple, Mozilla, Microsoft). No external notification service is involved.
-
-1. An admin selects **Web Push (PWA)** as the provider and saves.
-2. Every person opens **Settings → Notifications** on their own phone or computer and presses **Turn on for this device**, then allows notifications when the browser asks. **Send test to my devices** verifies it.
-3. APK, maintenance and document alerts go to **all** enabled devices of **all** users. Devices that the browser has revoked (HTTP 404/410 from the push service) are removed automatically.
-
-Requirements and limits:
-- **HTTPS is required** (or `localhost`). Put VehicleVault behind a reverse proxy with a certificate.
-- **iPhone / iPad (iOS 16.4+):** Safari only allows Web Push for the app added to the Home Screen (Share → *Add to Home Screen*); open it from there before turning notifications on.
-- A user can enable at most 10 devices. Endpoints must be `https` DNS names of a push service, so the server never POSTs to IP addresses or internal hosts.
-- The VAPID key pair is generated on first use and stored in the database (`system_settings`), so it is included in backups. To manage the keys yourself, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`, a `mailto:` or `https:` contact). If the key pair changes, devices must press **Turn on** again; the app re-subscribes them with the new key.
+| **E-mail** | Sent through **Microsoft 365** (sign in), **Gmail** (connect with Google), **SMTP** or **Microsoft Graph** with your own app. |
 
 ---
 
-## 2. Multi-User Garage Isolation & Vehicle Sharing
+## 2. Super-Admin Fleet Management, User Audit & Vehicle Sharing
 
-### Strict Per-User Isolation
-By default, every registered user has a strictly isolated garage: User A cannot see User B's vehicles.
+### Strict Multi-Tenant Isolation
+By default, every registered user has a strictly isolated garage: User A cannot see User B's vehicles or private records.
 
-### Granular Vehicle Sharing (`vehicle_shares`)
-Want to share a family car with your partner, parents, or co-driver?
-1. Go to **My Garage (`Mijn Garage`)** and click the **Share (`Delen`)** button on any vehicle you own.
-2. Select or enter the email address of a registered user and choose their access level:
-   - **`Editor (Bewerker)`:** Can view and log fuel fill-ups, maintenance records, documents, tire measurements, trips, fixed expenses, and view TCO analytics. Only the owner can delete the vehicle itself.
-   - **`Viewer (Kijker)`:** Read-only access to the vehicle's dashboard, fuel history, maintenance history, documents, tires, and TCO analytics.
-3. Shared vehicles display a **`Gedeeld door ...` (Shared by)** badge in the recipient's garage.
+### Super-Admin (Container & Server Owner) Capabilities
+The server owner retains full administrative authority over the deployment:
+- **Server Users Overview:** Under **Settings → Server Gebruikers (Admin)**, Super-Admins view every account registered on the server.
+- **Real-Time Audit Trail:** Review exact **last login** (`last_login_at`) and **last activity** (`last_active_at`) timestamps, account creation dates, vehicle counts, and shared access.
+- **Global Role Management:** Promote or demote users between roles (`Super-Admin`, `Gebruiker`, `Chauffeur`) with 1-click select controls.
+- **Full Fleet View Toggle:** In the **My Garage (`Voertuigen`)** screen, Super-Admins can toggle **Toon Alle Voertuigen (Admin)** to view all registered vehicles across the entire server, with owner tags (`Gedeeld (vriend@voorbeeld.nl)`), while keeping private documents and invoices confidential to the vehicle owner.
+- **Server Settings Safeguard:** Server-critical tabs (Database Backups, Reverse Proxy controls, AI models) remain strictly hidden from non-admin accounts.
 
-### Roles (`admin`, `user`, `driver`)
-- **`admin`:** Full system access, AI/Notification/Backup settings, and user management.
-- **`user`:** Full VehicleVault interface for their own vehicles and any vehicles shared with them.
-- **`driver` (`Chauffeur Modus`):** Simplified, high-contrast mobile dashboard focused on 1-click fueling, EV charging, and trip logging.
+### Direct Co-Driver Invitations (`vehicle_shares`)
+Want to share a family car with your partner, wife, parents, or co-driver?
+1. Go to **My Garage (`Mijn Garage`)** and click the **Delen (Share)** button on any vehicle you own.
+2. Enter the email address of the person you want to invite (even if they don't have an account yet).
+3. Choose their access level:
+   - **`Editor (Bewerker / Bestuurder)`:** Can view and log fuel fill-ups, maintenance records, documents, tire measurements, trips, fixed expenses, and view TCO analytics.
+   - **`Viewer (Kijker / Toeschouwer)`:** Read-only access to the vehicle's dashboard, fuel history, maintenance history, documents, tires, and TCO analytics.
+4. **Instant Onboarding Link:** Click **Kopieer Uitnodigingslink** to send a direct onboarding URL via WhatsApp or email. The co-driver is auto-provisioned and granted instant access upon opening the link.
+5. The vehicle owner can modify permissions or revoke access at any time.
+
+### Account Roles
+- **`Super-Admin` (`admin`):** Full server management, user audit, server backups, proxy settings, and global fleet overview.
+- **`Gebruiker` (`user`):** Independent vehicle owner with their own vehicles, personal Home Assistant coupling, and vehicle driver invitation management.
+- **`Chauffeur` (`driver`):** Simplified, high-contrast mobile dashboard focused on 1-click fueling, EV charging, and trip logging on shared vehicles.
 
 ---
 
-## 3. Reverse Proxy SSO & No-Auth Mode
+## 3. Reverse Proxy SSO & Hardened Header Authentication
 
-- **Zero-Config Reverse Proxy SSO:** Supports **Pangolin**, **Authelia**, **Authentik**, **Traefik**, and **Cloudflare Access** via `Remote-Email`, `X-Forwarded-Email`, or `X-Pangolin-User` headers.
-- **No-Auth Mode (`DISABLE_AUTH=true`):** Can be toggled in **Settings → Algemeen** or via `.env` for trusted local home networks.
+VehicleVault integrates seamlessly behind authentication reverse proxies:
+- **Supported Proxies:** **Pangolin**, **Authelia**, **Authentik**, **Traefik Forward-Auth**, and **Cloudflare Access**.
+- **Supported Headers:** `Remote-Email`, `X-Forwarded-Email`, `Remote-User`, `X-Forwarded-User`, or `X-Pangolin-User`.
+- **Automatic Page Load Session Minting:** When entering via Pangolin or Authelia, VehicleVault detects the identity headers on initial page navigation (`GET /`), immediately issues HTTP-only session cookies (`refresh_token` and `vv_token` with `Path=/`), and logs the user in without landing on a secondary login prompt.
+- **Diagnostic Endpoint:** Inspect live proxy headers and proxy trust in real time by visiting `https://your-domain.com/proxy-debug` while logged into your reverse proxy.
+- **Admin UI Toggle:** Under **Settings → Server Gebruikers**, administrators can toggle **Reverse Proxy SSO** on or off at any time. When disabled, proxy headers are safely ignored.
+- **Strict IP Validation:** VehicleVault validates that incoming requests containing proxy headers originate from trusted loopback (`127.0.0.1`, `::1`) or standard RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`). Public clients cannot inject spoofed headers.
+- **Auto-Provisioning:** When a user logs in through Pangolin or Authentik for the first time, a corresponding VehicleVault account is automatically provisioned for them.
 
 ---
 
-## 4. Passkeys & Recovery Codes
+## 4. 1-Click Guest & Proef Sandbox Mode
+
+Want friends, prospective users, or community visitors to test VehicleVault without having to manually invite them or give them access through your SSO/reverse proxy?
+
+### Features
+1. **1-Click Guest Trial:** Click **Probeer Proefmodus (1-Click)** on the login screen to enter a fully functional, isolated sandbox session immediately.
+2. **Invite Link Auto-Entry:** Direct visitors to `https://your-domain.com/?guest=1` or `?proef=1` to launch directly into the guest trial without touching the login form.
+3. **Persistent Trial Banner:** A floating reminder banner indicates that the session is in guest mode and provides a **Bewaar Mijn Account (Convert)** button.
+4. **Seamless Account Conversion:** At any moment, the guest can enter their email and choose a password. Their guest account is instantly converted into a permanent account with all their test vehicles, fuel entries, and maintenance history preserved.
+5. **Admin Access Control:** Administrators can enable or disable guest access under **Settings → Gebruikers & Toegang** or via the `ALLOW_GUEST_ACCESS=false` environment variable.
+
+---
+
+## 5. Passkeys & Recovery Codes
 
 Passkeys let you sign in with a fingerprint, face or device PIN instead of typing a password. They work **next to** the password, which stays available as the fallback.
 
 ### Requirements
-- A **domain name** and **HTTPS** (or `localhost`). Browsers refuse passkeys on IP addresses and plain HTTP; the login page then shows why and the password keeps working.
-- Behind a reverse proxy, set the public address explicitly and forward `X-Forwarded-Proto`:
-
-```env
-RP_ID=vault.yourdomain.com
-RP_ORIGINS=https://vault.yourdomain.com
-```
-
-Without these, VehicleVault uses the address of the request. Passkeys are bound to `RP_ID`: if you move to another domain, existing passkeys stop working (your password and recovery codes still do).
-
-### Using them
-1. **Settings → Gebruikers & Toegang → Passkeys:** name the passkey and press **Passkey toevoegen**.
-2. On the login page, press **Inloggen met passkey**. No e-mail address is needed.
-3. You can rename or remove passkeys there. The last way to sign in cannot be removed.
+- A **domain name** and **HTTPS** (or `localhost`).
+- Behind a reverse proxy, set `RP_ID` and `RP_ORIGINS`:
+  ```env
+  RP_ID=vault.yourdomain.com
+  RP_ORIGINS=https://vault.yourdomain.com
+  ```
 
 ### Recovery codes
-- Your first passkey comes with **8 one-time recovery codes**. They are shown **once**; store them somewhere safe.
-- Lost your device? On the login page open **Apparaat kwijt?**, enter a code, and add a new passkey in Settings.
-- Codes are stored only as SHA-256 hashes and are consumed on use. **Nieuwe codes maken** replaces all of them.
+- Your first passkey comes with **8 one-time recovery codes**. They are stored only as SHA-256 hashes and are consumed on use.
 
-### Notes
-- Passkeys are not offered when you sign in through a reverse proxy (SSO), with an API key, or with authentication disabled.
-- Implementation: `@simplewebauthn/server` verifies origin, relying-party ID, challenge and signature; VehicleVault stores the public key and signature counter per passkey.
+---
+
+## 6. Adaptive Visitor Experience (Theme & Language Auto-Detection)
+
+- **Zero-Flash System Theme:** Automatically detects the visitor's operating system and browser preference (`prefers-color-scheme`). Dark mode or light mode is activated instantly before page render.
+- **Automatic Language Detection:** Inspects `navigator.language` and `navigator.languages`. Dutch-speaking users are automatically greeted in **Nederlands (`nl`)**, while international visitors receive the interface in **English (`en`)**.
+- **Manual Override:** The user's explicit choices via the theme switcher and language flag toggle are persistently remembered in `localStorage`.

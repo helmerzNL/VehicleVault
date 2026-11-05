@@ -9,17 +9,23 @@ import {
   Car,
   Landmark,
   Fuel,
+  Wrench,
+  FolderLock,
+  Ticket,
   LineChart,
   Route,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { OfflineBanner } from './OfflineBanner.js';
+import { GuestTrialBanner } from './auth/GuestTrialBanner.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useModules } from '../context/ModuleContext.js';
+import { useLanguage } from '../context/LanguageContext.js';
 
 export const Layout: React.FC = () => {
   const { user } = useAuth();
   const { isModuleEnabled } = useModules();
+  const { lang } = useLanguage();
   const isDriver = user?.role === 'driver';
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -69,6 +75,7 @@ export const Layout: React.FC = () => {
         onSelectVehicle={handleSelectVehicle}
       />
       <OfflineBanner />
+      <GuestTrialBanner />
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         <Sidebar />
@@ -79,12 +86,12 @@ export const Layout: React.FC = () => {
 
       {/* Mobile Bottom Navigation Bar. Its padding keeps the tabs clear of the iOS home indicator and gesture bar,
           and of a camera cut-out when the phone is held sideways. */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(3.5rem+var(--safe-bottom))] pb-safe-bottom pl-[calc(0.25rem+var(--safe-left))] pr-[calc(0.25rem+var(--safe-right))] bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-40 backdrop-blur shadow-lg overflow-x-auto">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(3.5rem+var(--safe-bottom))] pb-safe-bottom pl-[calc(0.5rem+var(--safe-left))] pr-[calc(0.5rem+var(--safe-right))] bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 flex items-center justify-start sm:justify-around z-40 backdrop-blur shadow-lg overflow-x-auto scrollbar-none space-x-1">
         <NavLink
           to="/"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-              isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+            `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+              isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`
           }
         >
@@ -96,8 +103,8 @@ export const Layout: React.FC = () => {
           <NavLink
             to="/vehicles"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`
             }
           >
@@ -110,13 +117,55 @@ export const Layout: React.FC = () => {
           <NavLink
             to="/fuel"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`
             }
           >
             <Fuel className="w-4 h-4 mb-0.5" />
-            <span>Tanken</span>
+            <span>{lang === 'nl' ? 'Tanken' : 'Fuel'}</span>
+          </NavLink>
+        )}
+
+        {!isDriver && isModuleEnabled('maintenance') && (
+          <NavLink
+            to="/maintenance"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`
+            }
+          >
+            <Wrench className="w-4 h-4 mb-0.5" />
+            <span>{lang === 'nl' ? 'Beurten' : 'Service'}</span>
+          </NavLink>
+        )}
+
+        {!isDriver && isModuleEnabled('documents') && (
+          <NavLink
+            to="/documents"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`
+            }
+          >
+            <FolderLock className="w-4 h-4 mb-0.5" />
+            <span>{lang === 'nl' ? 'Documenten' : 'Docs'}</span>
+          </NavLink>
+        )}
+
+        {!isDriver && isModuleEnabled('vignettes') && (
+          <NavLink
+            to="/vignettes"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`
+            }
+          >
+            <Ticket className="w-4 h-4 mb-0.5" />
+            <span>{lang === 'nl' ? 'Vignetten' : 'Vignettes'}</span>
           </NavLink>
         )}
 
@@ -124,13 +173,13 @@ export const Layout: React.FC = () => {
           <NavLink
             to="/trips"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+              `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`
             }
           >
             <Route className="w-4 h-4 mb-0.5" />
-            <span>Ritten</span>
+            <span>{lang === 'nl' ? 'Ritten' : 'Trips'}</span>
           </NavLink>
         )}
 
@@ -140,13 +189,13 @@ export const Layout: React.FC = () => {
               <NavLink
                 to="/fixed-expenses"
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                    isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+                  `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                    isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`
                 }
               >
                 <Landmark className="w-4 h-4 mb-0.5" />
-                <span>Lasten</span>
+                <span>{lang === 'nl' ? 'Lasten' : 'Expenses'}</span>
               </NavLink>
             )}
 
@@ -154,8 +203,8 @@ export const Layout: React.FC = () => {
               <NavLink
                 to="/analytics"
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                    isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+                  `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                    isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`
                 }
               >
@@ -167,13 +216,13 @@ export const Layout: React.FC = () => {
             <NavLink
               to="/settings"
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center text-[10px] px-1.5 py-1 ${
-                  isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500'
+                `flex flex-col items-center justify-center text-[10px] shrink-0 min-w-[54px] px-1 py-1 transition ${
+                  isActive ? 'text-accent-600 dark:text-accent-400 font-bold' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                 }`
               }
             >
               <SettingsIcon className="w-4 h-4 mb-0.5" />
-              <span>Opties</span>
+              <span>{lang === 'nl' ? 'Opties' : 'Settings'}</span>
             </NavLink>
           </>
         )}

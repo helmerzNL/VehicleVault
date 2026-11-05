@@ -17,12 +17,12 @@ data/
 *.db-shm
 *.db-wal
 *.traineddata
-uploads/
-server/uploads/
-receipts/
-invoices/
-documents/
-vehicles/
+/uploads/
+/server/uploads/
+/receipts/
+/invoices/
+/documents/
+/vehicles/
 
 # Environment variables & secrets
 .env
@@ -71,5 +71,7 @@ coverage/
 .turbo/
 .eslintcache
 
-# Internal dev context
+# Internal dev context & AI agent rules
 PROJECT_CONTEXT.md
+.antigravity/
+.cursor/

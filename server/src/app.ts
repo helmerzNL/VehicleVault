@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import { env, DATA_PATHS } from './config/env.js';
 import { db } from './db/database.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import { requireFileAuth } from './middleware/fileAuth.js';
 
 import authRoutes from './routes/authRoutes.js';
 import vehicleRoutes from './routes/vehicleRoutes.js';
@@ -25,8 +26,15 @@ import expenseRoutes from './routes/expenseRoutes.js';
 import tripRoutes from './routes/tripRoutes.js';
 import tireRoutes from './routes/tireRoutes.js';
 import vignetteRoutes from './routes/vignetteRoutes.js';
+import telematicsRoutes from './routes/telematicsRoutes.js';
+import { httpLogger } from './utils/logger.js';
 import { ShowcaseController } from './controllers/showcaseController.js';
 import { APP_VERSION, getChannel } from './utils/channel.js';
+import { AuthController } from './controllers/authController.js';
+import { getProxyUser } from './middleware/proxyAuth.js';
+import { startSession } from './utils/session.js';
+import { toNodeHandler } from 'better-auth/node';
+import { auth as betterAuthInstance } from './auth/betterAuth.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -55,6 +63,9 @@ export function createApp(): express.Application {
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
+  // Pino Structured HTTP Logger
+  app.use(httpLogger);
+
   // HTTP Request Logger (Clean, structured console logging)
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Skip noisy polling on internal healthz endpoint
@@ -75,11 +86,11 @@ export function createApp(): express.Application {
     next();
   });
 
-  // Serve persistent uploads securely
-  app.use('/uploads/receipts', express.static(DATA_PATHS.receipts));
-  app.use('/uploads/invoices', express.static(DATA_PATHS.invoices));
+  // Serve persistent uploads: public vehicle photos for showcases, protected for confidential documents
   app.use('/uploads/vehicles', express.static(DATA_PATHS.vehicles));
-  app.use('/uploads/documents', express.static(DATA_PATHS.documents));
+  app.use('/uploads/receipts', requireFileAuth('receipts'), express.static(DATA_PATHS.receipts));
+  app.use('/uploads/invoices', requireFileAuth('invoices'), express.static(DATA_PATHS.invoices));
+  app.use('/uploads/documents', requireFileAuth('documents'), express.static(DATA_PATHS.documents));
 
   // Health check endpoint (Phase 4 requirement)
   app.get('/healthz', (_req: Request, res: Response) => {
@@ -101,6 +112,9 @@ export function createApp(): express.Application {
     }
   });
 
+  // Diagnostic endpoint for reverse proxies (protected or non-protected routes)
+  app.get('/proxy-debug', AuthController.proxyDebug);
+
   // Apply general rate limiter to API routes
   app.use('/api', apiLimiter);
 
@@ -111,6 +125,8 @@ export function createApp(): express.Application {
 
   // Mount API Domain Routes
   app.use('/api/auth', authRoutes);
+  // Standard Better-Auth Handlers (Protocol V3 & Fallback)
+  app.all('/api/auth/v3/*', toNodeHandler(betterAuthInstance));
   app.use('/api/vehicles', vehicleRoutes);
   app.use('/api/fuel', fuelRoutes);
   app.use('/api/maintenance', maintenanceRoutes);
@@ -126,6 +142,7 @@ export function createApp(): express.Application {
   app.use('/api/trips', tripRoutes);
   app.use('/api/tires', tireRoutes);
   app.use('/api/vignettes', vignetteRoutes);
+  app.use('/api/telematics', telematicsRoutes);
 
   // Public Unauthenticated Showcase Endpoint
   app.get('/api/public/showcase/:slug', ShowcaseController.getPublic);
@@ -156,6 +173,25 @@ export function createApp(): express.Application {
         next();
       }
     });
+
+    // Auto-authenticate reverse proxy SSO users on any incoming page request before static assets or index.html are served
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method === 'GET' && !req.path.startsWith('/assets/')) {
+        try {
+          const proxyUser = getProxyUser(req);
+          if (proxyUser) {
+            startSession(
+              req,
+              res,
+              { id: proxyUser.userId, email: proxyUser.email, role: proxyUser.role },
+              { trackLogin: true }
+            );
+          }
+        } catch {}
+      }
+      next();
+    });
+
     app.use(
       express.static(clientDist, {
         setHeaders: (res, filePath) => {
@@ -176,6 +212,19 @@ export function createApp(): express.Application {
       if (req.path.startsWith('/assets/') || /\.(js|mjs|css|map|json|txt|png|jpe?g|gif|svg|ico|webp|woff2?|ttf)$/i.test(req.path)) {
         res.status(404).type('text/plain').send('Not found');
         return;
+      }
+      try {
+        const proxyUser = getProxyUser(req);
+        if (proxyUser) {
+          startSession(
+            req,
+            res,
+            { id: proxyUser.userId, email: proxyUser.email, role: proxyUser.role },
+            { trackLogin: true }
+          );
+        }
+      } catch {
+        // Non-blocking: continue serving index.html if proxy session generation fails
       }
       res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(clientDist, 'index.html'));

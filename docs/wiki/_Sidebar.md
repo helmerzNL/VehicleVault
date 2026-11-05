@@ -1,4 +1,4 @@
-### 🚗 VehicleVault v2.0.0
+### 🚗 VehicleVault v3.2.0
 
 * 🏠 **[Home](Home)**
 * 🐳 **[Installation & Docker](Installation-and-Docker)**
